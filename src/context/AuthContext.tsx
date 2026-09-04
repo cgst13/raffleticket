@@ -8,9 +8,9 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginAsManager: (raffleId: string, email: string) => Promise<{ success: boolean; error?: string }>;
-  register: (fullName: string, username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (fullName: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -29,25 +29,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    const trimmedUser = username.trim();
-    if (!trimmedUser || !password) {
-      return { success: false, error: 'Please enter username and password.' };
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !password) {
+      return { success: false, error: 'Please enter both your email address and password.' };
     }
 
-    const stored = authRepository.getUserByUsername(trimmedUser);
+    if (!trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+
+    const stored = authRepository.getUserByEmail(trimmedEmail);
     if (!stored) {
-      return { success: false, error: 'Invalid username or password.' };
+      return { success: false, error: 'Invalid email address or password.' };
     }
 
     if (stored.passwordHash !== password) {
-      return { success: false, error: 'Invalid username or password.' };
+      return { success: false, error: 'Invalid email address or password.' };
     }
 
     const sessionUser: User = {
       id: stored.id,
       fullName: stored.fullName,
-      username: stored.username,
+      email: stored.email,
+      username: stored.username || stored.email,
       role: 'admin',
       createdAt: stored.createdAt,
     };
@@ -87,8 +92,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const managerUser: User = {
       id: `mgr_${trimmedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
       fullName: `${formattedName} (Manager)`,
-      username: trimmedEmail,
       email: trimmedEmail,
+      username: trimmedEmail,
       role: 'manager',
       raffleId: raffle.id,
       createdAt: new Date().toISOString(),
@@ -105,23 +110,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  const register = async (fullName: string, username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const register = async (fullName: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     const trimmedFull = fullName.trim();
-    const trimmedUser = username.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
-    if (!trimmedFull || !trimmedUser || !password) {
+    if (!trimmedFull || !trimmedEmail || !password) {
       return { success: false, error: 'All fields are required.' };
     }
 
-    const existing = authRepository.getUserByUsername(trimmedUser);
+    if (!trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
+      return { success: false, error: 'Please provide a valid email address.' };
+    }
+
+    if (password.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters long.' };
+    }
+
+    const existing = authRepository.getUserByEmail(trimmedEmail);
     if (existing) {
-      return { success: false, error: 'Username already taken. Please choose another.' };
+      return { success: false, error: 'An account with this email address already exists. Please sign in.' };
     }
 
     const newUser: User = {
       id: uuidv4(),
       fullName: trimmedFull,
-      username: trimmedUser,
+      email: trimmedEmail,
+      username: trimmedEmail,
       role: 'admin',
       createdAt: new Date().toISOString(),
     };

@@ -4,12 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Ticket, Lock, User as UserIcon } from 'lucide-react';
+import { Ticket, Lock, User as UserIcon, Mail } from 'lucide-react';
 import { appConfig } from '../config/appConfig';
 
 export const RegisterPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,13 +19,24 @@ export const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!email.trim() || !email.includes('@') || !email.includes('.')) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters long.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error('Passwords do not match!');
       return;
     }
 
     setIsLoading(true);
-    const result = await register(fullName, username, password);
+    const result = await register(fullName, email, password);
     setIsLoading(false);
 
     if (result.success) {
@@ -53,6 +64,7 @@ export const RegisterPage: React.FC = () => {
               label="Full Name"
               type="text"
               required
+              autoComplete="name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Maria Clara Santos"
@@ -60,18 +72,21 @@ export const RegisterPage: React.FC = () => {
             />
 
             <Input
-              label="Username"
-              type="text"
+              label="Email Address"
+              type="email"
               required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. mariaclara"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. mariaclara@example.com"
+              leftAddon={<Mail className="w-4 h-4" />}
             />
 
             <Input
               label="Password"
               type="password"
               required
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -82,6 +97,7 @@ export const RegisterPage: React.FC = () => {
               label="Confirm Password"
               type="password"
               required
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"

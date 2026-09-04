@@ -296,7 +296,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="truncate">
                   <p className="text-xs font-semibold text-[#111111] truncate">{user?.fullName || 'User'}</p>
                   <p className="text-[10px] text-[#6B7280] truncate">
-                    {isManager ? 'Event Manager' : `@${user?.username || 'admin'}`}
+                    {isManager ? 'Event Manager' : (user?.email || user?.username || 'Admin')}
                   </p>
                 </div>
               </div>

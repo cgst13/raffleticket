@@ -28,22 +28,47 @@ export class LocalStorageAuthRepository implements IAuthRepository {
     storageAdapter.remove(STORAGE_KEYS.SESSION);
   }
 
-  getUserByUsername(username: string): StoredUser | null {
+  getUserByEmail(email: string): StoredUser | null {
     const users = storageAdapter.get<StoredUser[]>(STORAGE_KEYS.USERS, []);
-    return users.find((u) => u.username.toLowerCase() === username.toLowerCase()) || null;
+    const normalized = email.trim().toLowerCase();
+    return users.find((u) => (u.email || u.username || '').toLowerCase() === normalized) || null;
+  }
+
+  getUserByUsername(username: string): StoredUser | null {
+    return this.getUserByEmail(username);
   }
 
   createUser(user: User, passwordHash: string): User {
     const users = storageAdapter.get<StoredUser[]>(STORAGE_KEYS.USERS, []);
-    const newUser: StoredUser = { ...user, passwordHash };
+    const normalizedEmail = (user.email || user.username || '').trim().toLowerCase();
+    const newUser: StoredUser = {
+      ...user,
+      email: normalizedEmail,
+      username: normalizedEmail,
+      passwordHash,
+    };
     users.push(newUser);
     storageAdapter.set(STORAGE_KEYS.USERS, users);
-    return { id: user.id, fullName: user.fullName, username: user.username, createdAt: user.createdAt };
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: normalizedEmail,
+      username: normalizedEmail,
+      role: user.role,
+      createdAt: user.createdAt,
+    };
   }
 
   getAllUsers(): User[] {
     const users = storageAdapter.get<StoredUser[]>(STORAGE_KEYS.USERS, []);
-    return users.map(({ id, fullName, username, createdAt }) => ({ id, fullName, username, createdAt }));
+    return users.map(({ id, fullName, email, username, role, createdAt }) => ({
+      id,
+      fullName,
+      email: email || username || '',
+      username: username || email || '',
+      role,
+      createdAt,
+    }));
   }
 }
 

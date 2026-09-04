@@ -11,7 +11,8 @@ export interface IAuthRepository {
   getCurrentSession(): AuthSession | null;
   saveSession(session: AuthSession): void;
   clearSession(): void;
-  getUserByUsername(username: string): (User & { passwordHash: string }) | null;
+  getUserByEmail(email: string): (User & { passwordHash: string }) | null;
+  getUserByUsername?(username: string): (User & { passwordHash: string }) | null;
   createUser(user: User, passwordHash: string): User;
   getAllUsers(): User[];
 }
