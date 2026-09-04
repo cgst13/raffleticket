@@ -166,31 +166,47 @@ class SupabaseSyncService {
     try {
       // 1. Raffles
       const localRaffles = storageAdapter.get<Raffle[]>(STORAGE_KEYS.RAFFLES, []);
+      const validRaffleIds = new Set<string>();
+
       if (localRaffles.length > 0) {
-        const payload = localRaffles.map((r) => ({
-          id: r.id,
-          event_name: r.eventName,
-          raffle_name: r.raffleName,
-          ticket_name: r.ticketName,
-          ticket_amount: r.ticketAmount,
-          draw_date: r.drawDate,
-          draw_time: r.drawTime || null,
-          venue: r.venue || null,
-          status: r.status,
-          description: r.description || '',
-          managers: r.managers || [],
-          created_at: r.createdAt,
-          updated_at: r.updatedAt,
-        }));
+        const payload = localRaffles.map((r) => {
+          validRaffleIds.add(r.id);
+          return {
+            id: r.id,
+            event_name: r.eventName,
+            raffle_name: r.raffleName,
+            ticket_name: r.ticketName,
+            ticket_amount: r.ticketAmount,
+            draw_date: r.drawDate,
+            draw_time: r.drawTime || null,
+            venue: r.venue || null,
+            status: r.status,
+            description: r.description || '',
+            managers: r.managers || [],
+            created_at: r.createdAt,
+            updated_at: r.updatedAt,
+          };
+        });
+
         for (let i = 0; i < payload.length; i += 500) {
-          await supabase.from('raffles').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          const { error } = await supabase.from('raffles').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase raffles upsert error:', error.message, error.details);
+          }
         }
       }
 
-      // 2. Ticket Designs
+      // Also fetch remote raffle IDs so child items referencing remote raffles are also valid
+      const remoteRaffles = await supabase.from('raffles').select('id');
+      if (remoteRaffles.data) {
+        remoteRaffles.data.forEach((r: any) => validRaffleIds.add(r.id));
+      }
+
+      // 2. Ticket Designs (Filter out orphaned designs without a valid raffle_id)
       const localDesigns = storageAdapter.get<TicketDesign[]>(STORAGE_KEYS.DESIGNS, []);
-      if (localDesigns.length > 0) {
-        const payload = localDesigns.map((d) => ({
+      const validDesigns = localDesigns.filter((d) => d.raffleId && validRaffleIds.has(d.raffleId));
+      if (validDesigns.length > 0) {
+        const payload = validDesigns.map((d) => ({
           id: d.id,
           raffle_id: d.raffleId,
           name: d.name,
@@ -200,18 +216,23 @@ class SupabaseSyncService {
           background_color: d.backgroundColor || '#FFFFFF',
           elements: d.elements || [],
           version: d.version || 1,
-          created_at: d.createdAt,
-          updated_at: d.updatedAt,
+          created_at: d.createdAt || new Date().toISOString(),
+          updated_at: d.updatedAt || new Date().toISOString(),
         }));
         for (let i = 0; i < payload.length; i += 500) {
-          await supabase.from('ticket_designs').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          const { error } = await supabase.from('ticket_designs').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase ticket_designs upsert error:', error.message, error.details);
+          }
         }
       }
 
-      // 3. Print Layouts
+      // 3. Print Layouts (Filter out orphaned layouts without a valid raffle_id)
       const localLayouts = storageAdapter.get<PrintLayout[]>(STORAGE_KEYS.PRINT_LAYOUTS, []);
-      if (localLayouts.length > 0) {
-        const payload = localLayouts.map((l) => ({
+      const validLayouts = localLayouts.filter((l) => l.raffleId && validRaffleIds.has(l.raffleId));
+      if (validLayouts.length > 0) {
+        const now = new Date().toISOString();
+        const payload = validLayouts.map((l) => ({
           id: l.id,
           raffle_id: l.raffleId,
           paper_size: l.paperSize,
@@ -229,64 +250,111 @@ class SupabaseSyncService {
           show_booklet_number: l.showBookletNumber,
           show_print_guides: l.showPrintGuides ?? true,
           calibration: l.calibration,
+          created_at: now,
+          updated_at: now,
         }));
         for (let i = 0; i < payload.length; i += 500) {
-          await supabase.from('print_layouts').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          const { error } = await supabase.from('print_layouts').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase print_layouts upsert error:', error.message, error.details);
+          }
         }
       }
 
-      // 4. Print Sets
+      // 4. Print Sets (Filter out orphaned sets)
       const localSets = storageAdapter.get<PrintSet[]>(STORAGE_KEYS.PRINT_SETS, []);
-      if (localSets.length > 0) {
-        const payload = localSets.map((s) => ({
-          id: s.id,
-          raffle_id: s.raffleId,
-          set_number: s.setNumber,
-          starting_ticket_number: s.startingTicketNumber,
-          ending_ticket_number: s.endingTicketNumber,
-          starting_sequence: s.startingSequence,
-          ending_sequence: s.endingSequence,
-          tickets_per_booklet: s.ticketsPerBooklet,
-          total_booklets: s.totalBooklets,
-          total_tickets: s.totalTickets,
-          total_pages: s.totalPages,
-          booklets_per_row: s.bookletsPerRow,
-          status: s.status,
-          created_at: s.createdAt,
-        }));
+      const validSets = localSets.filter((s) => s.raffleId && validRaffleIds.has(s.raffleId));
+      const validSetIds = new Set<string>();
+
+      if (validSets.length > 0) {
+        const payload = validSets.map((s) => {
+          validSetIds.add(s.id);
+          return {
+            id: s.id,
+            raffle_id: s.raffleId,
+            set_number: s.setNumber,
+            starting_ticket_number: s.startingTicketNumber,
+            ending_ticket_number: s.endingTicketNumber,
+            starting_sequence: s.startingSequence,
+            ending_sequence: s.endingSequence,
+            tickets_per_booklet: s.ticketsPerBooklet,
+            total_booklets: s.totalBooklets,
+            total_tickets: s.totalTickets,
+            total_pages: s.totalPages,
+            booklets_per_row: s.bookletsPerRow,
+            status: s.status,
+            created_at: s.createdAt,
+          };
+        });
         for (let i = 0; i < payload.length; i += 500) {
-          await supabase.from('print_sets').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          const { error } = await supabase.from('print_sets').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase print_sets upsert error:', error.message, error.details);
+          }
         }
       }
 
-      // 5. Booklets
+      // Also get remote print set IDs
+      const remoteSets = await supabase.from('print_sets').select('id');
+      if (remoteSets.data) {
+        remoteSets.data.forEach((s: any) => validSetIds.add(s.id));
+      }
+
+      // 5. Booklets (Filter out orphaned booklets)
       const localBooklets = storageAdapter.get<Booklet[]>(STORAGE_KEYS.BOOKLETS, []);
-      if (localBooklets.length > 0) {
-        for (let i = 0; i < localBooklets.length; i += 500) {
-          const chunk = localBooklets.slice(i, i + 500).map((b) => ({
-            id: b.id,
-            print_set_id: b.printSetId,
-            raffle_id: b.raffleId,
-            booklet_number: b.bookletNumber,
-            starting_ticket_number: b.startTicketNumber,
-            ending_ticket_number: b.endTicketNumber,
-            starting_sequence: b.startSequence,
-            ending_sequence: b.endSequence,
-            total_tickets: b.totalTickets,
-            status: b.status,
-            solicitor_name: b.solicitorName || null,
-            buyer_name: b.buyerName || null,
-            created_at: b.createdAt,
-          }));
-          await supabase.from('booklets').upsert(chunk, { onConflict: 'id' });
+      const validBooklets = localBooklets.filter(
+        (b) => b.raffleId && validRaffleIds.has(b.raffleId) && b.printSetId && validSetIds.has(b.printSetId)
+      );
+      const validBookletIds = new Set<string>();
+
+      if (validBooklets.length > 0) {
+        for (let i = 0; i < validBooklets.length; i += 500) {
+          const chunk = validBooklets.slice(i, i + 500).map((b) => {
+            validBookletIds.add(b.id);
+            return {
+              id: b.id,
+              print_set_id: b.printSetId,
+              raffle_id: b.raffleId,
+              booklet_number: b.bookletNumber,
+              starting_ticket_number: b.startTicketNumber,
+              ending_ticket_number: b.endTicketNumber,
+              starting_sequence: b.startSequence,
+              ending_sequence: b.endSequence,
+              total_tickets: b.totalTickets,
+              status: b.status,
+              solicitor_name: b.solicitorName || null,
+              buyer_name: b.buyerName || null,
+              created_at: b.createdAt,
+            };
+          });
+          const { error } = await supabase.from('booklets').upsert(chunk, { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase booklets upsert error:', error.message, error.details);
+          }
         }
       }
 
-      // 6. Tickets (Chunked in batches of 500 to support 10,000+ tickets smoothly)
+      // Also get remote booklet IDs
+      const remoteBooklets = await supabase.from('booklets').select('id');
+      if (remoteBooklets.data) {
+        remoteBooklets.data.forEach((b: any) => validBookletIds.add(b.id));
+      }
+
+      // 6. Tickets (Chunked in batches of 500, filtered for parent integrity)
       const localTickets = storageAdapter.get<Ticket[]>(STORAGE_KEYS.TICKETS, []);
-      if (localTickets.length > 0) {
-        for (let i = 0; i < localTickets.length; i += 500) {
-          const chunk = localTickets.slice(i, i + 500).map((t) => ({
+      const validTickets = localTickets.filter(
+        (t) =>
+          t.raffleId &&
+          validRaffleIds.has(t.raffleId) &&
+          t.printSetId &&
+          validSetIds.has(t.printSetId) &&
+          t.bookletId &&
+          validBookletIds.has(t.bookletId)
+      );
+
+      if (validTickets.length > 0) {
+        for (let i = 0; i < validTickets.length; i += 500) {
+          const chunk = validTickets.slice(i, i + 500).map((t) => ({
             id: t.id,
             print_set_id: t.printSetId,
             booklet_id: t.bookletId,
@@ -303,14 +371,18 @@ class SupabaseSyncService {
             sold_at: t.soldAt || null,
             used_at: t.usedAt || null,
           }));
-          await supabase.from('tickets').upsert(chunk, { onConflict: 'id' });
+          const { error } = await supabase.from('tickets').upsert(chunk, { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase tickets upsert error:', error.message, error.details);
+          }
         }
       }
 
-      // 7. Expenses
+      // 7. Expenses (Filtered for valid raffle_id)
       const localExpenses = storageAdapter.get<Expense[]>(STORAGE_KEYS.EXPENSES, []);
-      if (localExpenses.length > 0) {
-        const payload = localExpenses.map((e) => ({
+      const validExpenses = localExpenses.filter((e) => e.raffleId && validRaffleIds.has(e.raffleId));
+      if (validExpenses.length > 0) {
+        const payload = validExpenses.map((e) => ({
           id: e.id,
           raffle_id: e.raffleId,
           title: e.title,
@@ -324,7 +396,10 @@ class SupabaseSyncService {
           updated_at: e.updatedAt,
         }));
         for (let i = 0; i < payload.length; i += 500) {
-          await supabase.from('expenses').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          const { error } = await supabase.from('expenses').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+          if (error) {
+            console.error('Supabase expenses upsert error:', error.message, error.details);
+          }
         }
       }
     } catch (err) {

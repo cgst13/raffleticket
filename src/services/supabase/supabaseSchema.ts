@@ -12,12 +12,14 @@ CREATE TABLE IF NOT EXISTS public.raffles (
     id TEXT PRIMARY KEY,
     event_name TEXT NOT NULL,
     raffle_name TEXT NOT NULL,
+    ticket_name TEXT NOT NULL DEFAULT 'General Admission',
     ticket_amount NUMERIC NOT NULL DEFAULT 0,
-    currency TEXT NOT NULL DEFAULT 'PHP',
-    total_goal_amount NUMERIC NOT NULL DEFAULT 0,
     draw_date TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft',
+    draw_time TEXT,
+    venue TEXT,
     description TEXT,
+    managers JSONB DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'draft',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -54,6 +56,7 @@ CREATE TABLE IF NOT EXISTS public.print_layouts (
     show_ticket_borders BOOLEAN NOT NULL DEFAULT true,
     show_page_numbers BOOLEAN NOT NULL DEFAULT true,
     show_booklet_number BOOLEAN NOT NULL DEFAULT false,
+    show_print_guides BOOLEAN NOT NULL DEFAULT true,
     calibration JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -71,9 +74,9 @@ CREATE TABLE IF NOT EXISTS public.print_sets (
     tickets_per_booklet INTEGER NOT NULL DEFAULT 10,
     total_booklets INTEGER NOT NULL DEFAULT 5,
     total_tickets INTEGER NOT NULL DEFAULT 50,
+    total_pages INTEGER NOT NULL DEFAULT 10,
     booklets_per_row INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'generated',
-    generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -88,19 +91,10 @@ CREATE TABLE IF NOT EXISTS public.booklets (
     starting_sequence INTEGER NOT NULL,
     ending_sequence INTEGER NOT NULL,
     total_tickets INTEGER NOT NULL DEFAULT 10,
-    status TEXT NOT NULL DEFAULT 'unassigned',
-    assigned_to TEXT,
+    status TEXT NOT NULL DEFAULT 'available',
     solicitor_name TEXT,
     buyer_name TEXT,
-    contact_number TEXT,
-    payment_status TEXT NOT NULL DEFAULT 'unpaid',
-    payment_method TEXT,
-    payment_reference TEXT,
-    notes TEXT,
-    assigned_at TIMESTAMPTZ,
-    sold_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 6. TICKETS TABLE
@@ -111,28 +105,15 @@ CREATE TABLE IF NOT EXISTS public.tickets (
     raffle_id TEXT NOT NULL REFERENCES public.raffles(id) ON DELETE CASCADE,
     ticket_number TEXT NOT NULL,
     ticket_sequence INTEGER NOT NULL,
-    booklet_number INTEGER NOT NULL,
     qr_value TEXT NOT NULL,
-    security_hash TEXT,
-    status TEXT NOT NULL DEFAULT 'generated',
+    amount NUMERIC NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'available',
     buyer_name TEXT,
-    buyer_contact TEXT,
-    buyer_address TEXT,
     solicitor_name TEXT,
-    payment_status TEXT NOT NULL DEFAULT 'unpaid',
-    payment_method TEXT,
-    payment_reference TEXT,
-    notes TEXT,
-    is_winner BOOLEAN NOT NULL DEFAULT false,
-    prize_title TEXT,
-    prize_rank INTEGER,
+    assigned_at TIMESTAMPTZ,
     sold_at TIMESTAMPTZ,
-    scanned_at TIMESTAMPTZ,
-    scanned_by TEXT,
-    voided_at TIMESTAMPTZ,
-    void_reason TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 7. EXPENSES TABLE
@@ -143,8 +124,9 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     amount NUMERIC NOT NULL DEFAULT 0,
     category TEXT NOT NULL DEFAULT 'other',
     date TEXT NOT NULL,
+    receipt_number TEXT,
     notes TEXT,
-    receipt_url TEXT,
+    recorded_by TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -185,7 +167,7 @@ CREATE TABLE IF NOT EXISTS public.names_history (
 );
 
 -- ════════════════════════════════════════════════════════════════
--- INDEXES FOR FAST QUERYING
+-- INDEXES FOR HIGH PERFORMANCE QUERYING
 -- ════════════════════════════════════════════════════════════════
 CREATE INDEX IF NOT EXISTS idx_ticket_designs_raffle ON public.ticket_designs(raffle_id);
 CREATE INDEX IF NOT EXISTS idx_print_layouts_raffle ON public.print_layouts(raffle_id);
@@ -213,7 +195,6 @@ ALTER TABLE public.managers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.names_history ENABLE ROW LEVEL SECURITY;
 
--- Allow full access for anon key (client app)
 DO $$
 BEGIN
     DROP POLICY IF EXISTS "Public Full Access on raffles" ON public.raffles;
