@@ -10,23 +10,91 @@ export interface StoredUser extends User {
 
 export class LocalStorageAuthRepository implements IAuthRepository {
   getCurrentSession(): AuthSession | null {
-    const session = storageAdapter.get<AuthSession | null>(STORAGE_KEYS.SESSION, null);
-    if (!session) return null;
+    let sessionJson: string | null = null;
 
-    // Check expiry
-    if (new Date(session.expiresAt) < new Date()) {
-      this.clearSession();
+    // 1. Check active tab session (sessionStorage)
+    if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+      try {
+        sessionJson = sessionStorage.getItem(STORAGE_KEYS.SESSION);
+      } catch (e) {
+        // Ignore access restrictions
+      }
+    }
+
+    // 2. Check persistent "Keep me logged in" session (localStorage)
+    if (!sessionJson && typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        sessionJson = localStorage.getItem(STORAGE_KEYS.SESSION);
+      } catch (e) {
+        // Ignore access restrictions
+      }
+    }
+
+    // 3. Check memory store fallback
+    if (!sessionJson) {
+      const memorySession = storageAdapter.get<AuthSession | null>(STORAGE_KEYS.SESSION, null);
+      if (memorySession) return memorySession;
       return null;
     }
-    return session;
+
+    try {
+      const session = JSON.parse(sessionJson) as AuthSession;
+      if (!session || !session.expiresAt) return null;
+
+      // Check expiry
+      if (new Date(session.expiresAt) < new Date()) {
+        this.clearSession();
+        return null;
+      }
+      return session;
+    } catch {
+      return null;
+    }
   }
 
-  saveSession(session: AuthSession): void {
+  saveSession(session: AuthSession, keepLoggedIn: boolean = true): void {
+    const json = JSON.stringify(session);
     storageAdapter.set(STORAGE_KEYS.SESSION, session);
+
+    if (typeof window !== 'undefined') {
+      try {
+        if (keepLoggedIn) {
+          // Persist to localStorage for enduring logins across restarts
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.SESSION, json);
+          }
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem(STORAGE_KEYS.SESSION);
+          }
+        } else {
+          // Store only in sessionStorage so closing the tab/window ends the session
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(STORAGE_KEYS.SESSION, json);
+          }
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem(STORAGE_KEYS.SESSION);
+          }
+        }
+      } catch (e) {
+        console.warn('Unable to persist session storage:', e);
+      }
+    }
   }
 
   clearSession(): void {
     storageAdapter.remove(STORAGE_KEYS.SESSION);
+    if (typeof window !== 'undefined') {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(STORAGE_KEYS.SESSION);
+        }
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(STORAGE_KEYS.SESSION);
+        }
+      } catch (e) {
+        // Ignore sandbox or security errors
+      }
+    }
   }
 
   getUserByEmail(email: string): StoredUser | null {

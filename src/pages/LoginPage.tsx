@@ -10,6 +10,7 @@ import { appConfig } from '../config/appConfig';
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const result = await login(email, password);
+    const result = await login(email, password, keepLoggedIn);
     setIsLoading(false);
 
     if (result.success) {
@@ -64,12 +65,24 @@ export const LoginPage: React.FC = () => {
               leftAddon={<Lock className="w-4 h-4" />}
             />
 
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-neutral-700 hover:text-neutral-900">
+                <input
+                  type="checkbox"
+                  checked={keepLoggedIn}
+                  onChange={(e) => setKeepLoggedIn(e.target.checked)}
+                  className="w-4 h-4 rounded border-neutral-300 text-[#F97316] focus:ring-[#F97316] cursor-pointer accent-[#F97316]"
+                />
+                <span>Keep me logged in</span>
+              </label>
+            </div>
+
             <div className="pt-2">
               <Button
                 type="submit"
                 variant="primary"
                 size="md"
-                className="w-full"
+                className="w-full font-bold shadow-md shadow-orange-100"
                 isLoading={isLoading}
               >
                 Sign In

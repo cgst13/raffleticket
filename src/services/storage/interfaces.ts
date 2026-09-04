@@ -9,7 +9,7 @@ import { AppSettings, ActivityItem, BackupData } from '../../types/settings';
 
 export interface IAuthRepository {
   getCurrentSession(): AuthSession | null;
-  saveSession(session: AuthSession): void;
+  saveSession(session: AuthSession, keepLoggedIn?: boolean): void;
   clearSession(): void;
   getUserByEmail(email: string): (User & { passwordHash: string }) | null;
   getUserByUsername?(username: string): (User & { passwordHash: string }) | null;

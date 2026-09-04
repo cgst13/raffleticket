@@ -8,9 +8,9 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginAsManager: (raffleId: string, email: string) => Promise<{ success: boolean; error?: string }>;
-  register: (fullName: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, keepLoggedIn?: boolean) => Promise<{ success: boolean; error?: string }>;
+  loginAsManager: (raffleId: string, email: string, keepLoggedIn?: boolean) => Promise<{ success: boolean; error?: string }>;
+  register: (fullName: string, email: string, password: string, keepLoggedIn?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -29,7 +29,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (
+    email: string,
+    password: string,
+    keepLoggedIn: boolean = true
+  ): Promise<{ success: boolean; error?: string }> => {
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
       return { success: false, error: 'Please enter both your email address and password.' };
@@ -62,14 +66,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session: AuthSession = {
       user: sessionUser,
       token: uuidv4(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: keepLoggedIn
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
-    authRepository.saveSession(session);
+    authRepository.saveSession(session, keepLoggedIn);
     setUser(session.user);
     return { success: true };
   };
 
-  const loginAsManager = async (raffleId: string, email: string): Promise<{ success: boolean; error?: string }> => {
+  const loginAsManager = async (
+    raffleId: string,
+    email: string,
+    keepLoggedIn: boolean = true
+  ): Promise<{ success: boolean; error?: string }> => {
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
       return { success: false, error: 'Please enter your email address.' };
@@ -104,15 +114,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session: AuthSession = {
       user: managerUser,
       token: uuidv4(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: keepLoggedIn
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
-    authRepository.saveSession(session);
+    authRepository.saveSession(session, keepLoggedIn);
     setUser(managerUser);
     return { success: true };
   };
 
-  const register = async (fullName: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const register = async (
+    fullName: string,
+    email: string,
+    password: string,
+    keepLoggedIn: boolean = true
+  ): Promise<{ success: boolean; error?: string }> => {
     const trimmedFull = fullName.trim();
     const trimmedEmail = email.trim().toLowerCase();
 
@@ -146,9 +163,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session: AuthSession = {
       user: newUser,
       token: uuidv4(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: keepLoggedIn
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
-    authRepository.saveSession(session);
+    authRepository.saveSession(session, keepLoggedIn);
     setUser(newUser);
     return { success: true };
   };

@@ -4,10 +4,22 @@
  */
 const memoryStore = new Map<string, string>();
 
-// Clean up any legacy localStorage residue on initialize
+// Clean up legacy data residue on initialize, while preserving persistent session
 if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
   try {
-    localStorage.clear();
+    const legacyKeys = [
+      'rafflepro_raffles',
+      'rafflepro_designs',
+      'rafflepro_print_layouts',
+      'rafflepro_print_sets',
+      'rafflepro_booklets',
+      'rafflepro_tickets',
+      'rafflepro_expenses',
+      'rafflepro_activities',
+      'rafflepro_settings',
+      'rafflepro_users',
+    ];
+    legacyKeys.forEach((k) => localStorage.removeItem(k));
   } catch {
     // Ignore sandbox or security errors
   }

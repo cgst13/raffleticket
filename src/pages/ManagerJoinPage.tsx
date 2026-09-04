@@ -32,6 +32,7 @@ export const ManagerJoinPage: React.FC = () => {
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [email, setEmail] = useState('');
+  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -78,7 +79,7 @@ export const ManagerJoinPage: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      const res = await loginAsManager(raffle.id, trimmedEmail);
+      const res = await loginAsManager(raffle.id, trimmedEmail, keepLoggedIn);
       if (res.success) {
         toast.success(`Welcome! Logged in as Manager for ${raffle.raffleName}`);
         navigate(`/raffles/${raffle.id}/generate`);
@@ -163,6 +164,18 @@ export const ManagerJoinPage: React.FC = () => {
               <p className="text-[11px] text-neutral-400 mt-1.5">
                 Requires email registered by the event administrator. No password required.
               </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-0.5">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-neutral-700 hover:text-neutral-900">
+                <input
+                  type="checkbox"
+                  checked={keepLoggedIn}
+                  onChange={(e) => setKeepLoggedIn(e.target.checked)}
+                  className="w-4 h-4 rounded border-neutral-300 text-[#F97316] focus:ring-[#F97316] cursor-pointer accent-[#F97316]"
+                />
+                <span>Keep me logged in</span>
+              </label>
             </div>
 
             <Button
