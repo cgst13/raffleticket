@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-primary: #F97316;
+    --dark-primary: #111111;
+    --page-bg: #F8F8F7;
+    --surface-card: #FFFFFF;
+    --border-subtle: #E5E5E5;
+    --text-muted: #6B7280;
+  }
+
+  body {
+    background-color: var(--page-bg);
+    color: var(--dark-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F1EF;
+}
+::-webkit-scrollbar-thumb {
+  background: #D4D4D0;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A8A2;
+}
+
+/* Print CSS Rules */
+@media print {
+  /* Hide all non-printable UI elements */
+  .no-print,
+  nav,
+  aside,
+  header,
+  footer,
+  .sidebar,
+  .toolbar,
+  .print-controls,
+  button,
+  .toast-container {
+    display: none !important;
+  }
+
+  /* Reset body and html margins */
+  html, body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #root {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Print Container Styling */
+  .print-only-container {
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    background: white !important;
+  }
+
+  /* Page Break Rules */
+  .print-page {
+    page-break-after: always !important;
+    break-after: page !important;
+    position: relative !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Avoid splitting tickets across pages */
+  .print-ticket-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Grid Background for Designer */
+.canvas-grid-pattern {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+    linear-gradient(to bottom, #e5e7eb 1px, transparent 1px);
+}
