@@ -20,6 +20,7 @@ export interface IAuthRepository {
 export interface IRaffleRepository {
   getAll(): Raffle[];
   getById(id: string): Raffle | null;
+  fetchByIdFromSupabase?(id: string): Promise<Raffle | null>;
   create(raffle: Raffle): Raffle;
   update(id: string, updates: Partial<Raffle>): Raffle | null;
   delete(id: string): boolean;

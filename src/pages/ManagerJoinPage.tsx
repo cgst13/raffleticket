@@ -21,6 +21,8 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { storageAdapter } from '../services/storage/storageAdapter';
+
 export const ManagerJoinPage: React.FC = () => {
   const { raffleId: paramRaffleId } = useParams<{ raffleId: string }>();
   const [searchParams] = useSearchParams();
@@ -31,28 +33,58 @@ export const ManagerJoinPage: React.FC = () => {
   const toast = useToast();
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
+  const [isLoadingRaffle, setIsLoadingRaffle] = useState(true);
   const [email, setEmail] = useState('');
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (raffleId) {
-      const found = rafflesRepository.getById(raffleId);
-      if (found) {
-        setRaffle(found);
+    let isMounted = true;
+
+    const findRaffle = async () => {
+      setIsLoadingRaffle(true);
+      if (raffleId) {
+        let found = rafflesRepository.getById(raffleId);
+        if (!found && rafflesRepository.fetchByIdFromSupabase) {
+          found = await rafflesRepository.fetchByIdFromSupabase(raffleId);
+        }
+        if (isMounted) {
+          if (found) {
+            setRaffle(found);
+            setErrorMessage(null);
+          } else {
+            setErrorMessage('Raffle event not found. Please verify your invitation link.');
+          }
+          setIsLoadingRaffle(false);
+        }
       } else {
-        setErrorMessage('Raffle event not found. Please verify your invitation link.');
+        const all = rafflesRepository.getAll();
+        if (all.length > 0) {
+          if (isMounted) {
+            setRaffle(all[0]);
+            setErrorMessage(null);
+            setIsLoadingRaffle(false);
+          }
+        } else {
+          if (isMounted) {
+            setErrorMessage('No raffle events currently available.');
+            setIsLoadingRaffle(false);
+          }
+        }
       }
-    } else {
-      // If no raffle specified in URL, get first active raffle or show error
-      const all = rafflesRepository.getAll();
-      if (all.length > 0) {
-        setRaffle(all[0]);
-      } else {
-        setErrorMessage('No raffle events currently available.');
-      }
-    }
+    };
+
+    findRaffle();
+
+    const unsubscribe = storageAdapter.subscribe(() => {
+      findRaffle();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [raffleId]);
 
   // If already logged in as manager for this event, navigate straight to Generate Tickets
@@ -111,7 +143,11 @@ export const ManagerJoinPage: React.FC = () => {
 
         {/* Event Card & Form */}
         <Card className="p-6 sm:p-7 shadow-xl border-neutral-200/80 bg-white space-y-5">
-          {raffle ? (
+          {isLoadingRaffle ? (
+            <div className="p-4 text-center text-xs font-semibold text-neutral-400 animate-pulse">
+              Finding raffle event details...
+            </div>
+          ) : raffle ? (
             <div className="p-3.5 rounded-xl bg-gradient-to-br from-orange-50/80 to-amber-50/40 border border-orange-200/60 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#ea580c] flex items-center gap-1">
@@ -132,7 +168,7 @@ export const ManagerJoinPage: React.FC = () => {
             </div>
           ) : null}
 
-          {errorMessage && (
+          {!isLoadingRaffle && errorMessage && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="leading-snug">{errorMessage}</div>

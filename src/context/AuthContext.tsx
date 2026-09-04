@@ -83,7 +83,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please enter your email address.' };
     }
 
-    const raffle = rafflesRepository.getById(raffleId);
+    let raffle = rafflesRepository.getById(raffleId);
+    if (!raffle && rafflesRepository.fetchByIdFromSupabase) {
+      raffle = await rafflesRepository.fetchByIdFromSupabase(raffleId);
+    }
     if (!raffle) {
       return { success: false, error: 'Raffle event not found.' };
     }
