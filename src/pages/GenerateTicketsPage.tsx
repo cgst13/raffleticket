@@ -46,6 +46,7 @@ export const GenerateTicketsPage: React.FC = () => {
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [design, setDesign] = useState<TicketDesign | null>(null);
+  const [baseDesign, setBaseDesign] = useState<TicketDesign | null>(null);
 
   // Form Inputs
   const [startingNumber, setStartingNumber] = useState('000001');
@@ -281,6 +282,7 @@ export const GenerateTicketsPage: React.FC = () => {
       designRepository.save(loadedDesign);
     }
     setDesign(loadedDesign);
+    setBaseDesign(loadedDesign);
 
     // Load print sets for this raffle
     const existingSets = printSetsRepository.getAll({ raffleId });
@@ -369,12 +371,65 @@ export const GenerateTicketsPage: React.FC = () => {
   const totalSpacingMm = (B - 1) * spacingMm;
   const printableWidth = Math.max(50, paperDims.width - marginMm * 2);
   const printableHeight = Math.max(25, paperDims.height - marginMm * 2 - totalSpacingMm);
+  const autoTicketWidth = Math.round(printableWidth * 10) / 10;
+  const autoTicketHeight = Math.round((printableHeight / B) * 10) / 10;
 
-  // Preserve exact design dimensions and fixed element coordinates without auto-adjusting
+  // Real-time design synchronized with auto-fitted dimensions & proportionally adjusted element positions
   const liveDesign = useMemo<TicketDesign | null>(() => {
-    if (!design) return null;
-    return design;
-  }, [design]);
+    const source = baseDesign || design;
+    if (!source) return null;
+
+    const baseWidth = source.widthMm || 140;
+    const baseHeight = source.heightMm || 50;
+
+    const scaleX = baseWidth > 0 ? autoTicketWidth / baseWidth : 1;
+    const scaleY = baseHeight > 0 ? autoTicketHeight / baseHeight : 1;
+    const fontScale = (scaleX + scaleY) / 2;
+
+    const scaledElements = (source.elements || []).map((el) => {
+      const isQr = el.type === 'qrCode';
+      const newX = Math.round(el.x * scaleX * 10) / 10;
+      const newY = Math.round(el.y * scaleY * 10) / 10;
+
+      let newW = Math.round(el.width * scaleX * 10) / 10;
+      let newH = Math.round(el.height * scaleY * 10) / 10;
+
+      // Keep QR code square
+      if (isQr) {
+        const qrSize = Math.round(Math.min(el.width * scaleX, el.height * scaleY) * 10) / 10;
+        newW = qrSize;
+        newH = qrSize;
+      }
+
+      const newFontSize = el.style?.fontSize
+        ? Math.round(Math.max(6, el.style.fontSize * fontScale) * 10) / 10
+        : undefined;
+
+      const newLetterSpacing = el.style?.letterSpacing
+        ? Math.round(el.style.letterSpacing * scaleX * 10) / 10
+        : undefined;
+
+      return {
+        ...el,
+        x: newX,
+        y: newY,
+        width: newW,
+        height: newH,
+        style: {
+          ...el.style,
+          ...(newFontSize ? { fontSize: newFontSize } : {}),
+          ...(newLetterSpacing !== undefined ? { letterSpacing: newLetterSpacing } : {}),
+        },
+      };
+    });
+
+    return {
+      ...source,
+      widthMm: autoTicketWidth,
+      heightMm: autoTicketHeight,
+      elements: scaledElements,
+    };
+  }, [baseDesign, design, autoTicketWidth, autoTicketHeight]);
 
   // Collision Check
   const collisionCheck =
@@ -407,7 +462,10 @@ export const GenerateTicketsPage: React.FC = () => {
     setIsGenerating(true);
     setGenerationProgress(25);
 
-    // Save print layout parameters with preserved ticket design dimensions
+    // Save auto-adjusted design and print layout parameters
+    if (liveDesign) {
+      designRepository.save(liveDesign);
+    }
     const layout = printLayoutRepository.getByRaffleId(raffle.id);
     if (layout && liveDesign) {
       printLayoutRepository.save({
@@ -480,11 +538,11 @@ export const GenerateTicketsPage: React.FC = () => {
             <h1 className="text-xl sm:text-2xl font-black text-[#111111] tracking-tight flex items-center gap-2">
               Generate Ticket Print Sets
               <span className="text-xs font-bold px-2 py-0.5 bg-orange-100 text-[#ea580c] rounded-full">
-                Custom Layout
+                Auto-Fitted Layout
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-[#6B7280]">
-              Prints {B} rows on {paperSize} paper preserving your exact ticket design and element positions.
+              Ticket sizes and element positions automatically adapt to fit {B} rows on {paperSize} paper with 100% precision.
             </p>
           </div>
 
