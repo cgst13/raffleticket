@@ -1,13 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { settingsRepository } from '../services/storage/settingsRepository';
 import { rafflesRepository } from '../services/storage/rafflesRepository';
-import { backupService } from '../services/backup/backupService';
 import { appConfig } from '../config/appConfig';
 import { Raffle } from '../types/raffle';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
 import {
@@ -38,10 +36,8 @@ import { SUPABASE_SQL_SCHEMA } from '../services/supabase/supabaseSchema';
 
 export const SettingsPage: React.FC = () => {
   const toast = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [settings, setSettings] = useState(settingsRepository.getSettings());
-  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
   // Event Manager management state
   const [raffles, setRaffles] = useState<Raffle[]>([]);
@@ -178,33 +174,6 @@ export const SettingsPage: React.FC = () => {
     e.preventDefault();
     settingsRepository.saveSettings(settings);
     toast.success('Application settings updated!');
-  };
-
-  const handleExport = () => {
-    backupService.exportToFile();
-    toast.success('Backup file exported to your downloads folder.');
-  };
-
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const result = await backupService.importFromFile(file);
-    if (result.success) {
-      toast.success(result.message);
-      setSettings(settingsRepository.getSettings());
-      setTimeout(() => window.location.reload(), 1000);
-    } else {
-      toast.error(result.message);
-    }
-    e.target.value = '';
-  };
-
-  const handleConfirmClear = () => {
-    backupService.clearAllData();
-    setIsClearModalOpen(false);
-    toast.success('All local storage data cleared.');
-    setTimeout(() => window.location.reload(), 800);
   };
 
   return (
@@ -623,73 +592,7 @@ export const SettingsPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Backup & Restore */}
-        <Card className="p-5 md:col-span-2">
-          <CardHeader className="pb-3 mb-3 border-b border-[#E5E5E5]">
-            <CardTitle className="text-sm">Database Backup & Data Portability</CardTitle>
-          </CardHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Export */}
-            <div className="p-4 rounded-xl border border-[#E5E5E5] bg-neutral-50/50 space-y-2 flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold text-neutral-900">Export All Data</h4>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Download full database JSON (raffles, tickets, booklets, designs, print sets).
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                leftIcon={<Download className="w-3.5 h-3.5" />}
-              >
-                Export JSON
-              </Button>
-            </div>
-
-            {/* Import */}
-            <div className="p-4 rounded-xl border border-[#E5E5E5] bg-neutral-50/50 space-y-2 flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold text-neutral-900">Import / Restore</h4>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Restore previously exported backup JSON file.
-                </p>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleImportFile}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                leftIcon={<Upload className="w-3.5 h-3.5" />}
-              >
-                Import JSON
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#E5E5E5]">
-            <span className="text-xs text-neutral-500">
-              Need a completely fresh start? Clear all locally persisted records.
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsClearModalOpen(true)}
-              className="text-red-600 hover:bg-red-50 hover:text-red-700"
-              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
-            >
-              Clear All Data
-            </Button>
-          </div>
-        </Card>
-
-        {/* System Architecture & Supabase Readiness */}
+        {/* System Architecture & Supabase Cloud Status */}
         <Card className="p-5 md:col-span-2 bg-neutral-900 text-white border-neutral-800">
           <div className="flex items-start gap-3">
             <div className="p-2.5 rounded-lg bg-neutral-800 text-orange-400 shrink-0">
@@ -697,11 +600,11 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-white">
-                {appConfig.name} v{appConfig.version} • Pluggable Repository Architecture
+                {appConfig.name} v{appConfig.version} • Cloud Database Architecture
               </h4>
               <p className="text-xs text-neutral-400 leading-relaxed">
-                The storage system is decoupled via standard TypeScript interfaces (`ITicketRepository`, `IRaffleRepository`, etc.).
-                LocalStorage persistence operates completely offline as a Progressive Web App with bidirectional background synchronization to Supabase Cloud Database.
+                Powered directly by Supabase Cloud PostgreSQL with automated range pagination and batch synchronization.
+                Real-time updates, event manager access, and unlimited ticket generation capabilities are actively enabled.
               </p>
             </div>
           </div>
@@ -718,7 +621,7 @@ export const SettingsPage: React.FC = () => {
       >
         <div className="space-y-3 text-xs">
           <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
-            <span className="text-neutral-500">PostgreSQL DDL for Supabase</span>
+            <span className="text-neutral-500">PostgreSQL DDL for Supabase (Also available in schema.sql)</span>
             <Button
               variant="primary"
               size="sm"
@@ -738,17 +641,6 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
-
-      {/* Clear Confirmation Modal */}
-      <ConfirmDialog
-        isOpen={isClearModalOpen}
-        onClose={() => setIsClearModalOpen(false)}
-        onConfirm={handleConfirmClear}
-        title="Clear All Local Storage Data?"
-        message="This action will permanently delete all raffles, tickets, print sets, designs, and settings from this browser. Make sure you have exported a backup if you wish to keep your records."
-        confirmLabel="Yes, Clear Everything"
-        variant="danger"
-      />
     </div>
   );
 };

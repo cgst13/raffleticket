@@ -13,6 +13,46 @@ export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'error' | 'unconfigu
 
 type SyncListener = (status: SyncStatus, lastSyncedAt: Date | null) => void;
 
+/**
+ * Fetch all rows from a Supabase table by paginating via .range(from, to)
+ * to completely bypass the default 1000-row PostgREST query limit.
+ */
+async function fetchAllRows<T = any>(tableName: string): Promise<T[]> {
+  const PAGE_SIZE = 1000;
+  let allRows: T[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .range(from, to);
+
+    if (error) {
+      // Table may not exist yet if schema was not run
+      if (error.code !== '42P01') {
+        console.error(`Error fetching ${tableName} (range ${from}-${to}):`, error);
+      }
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...(data as T[]));
+      if (data.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        from += PAGE_SIZE;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
 class SupabaseSyncService {
   private status: SyncStatus = 'synced';
   private lastSyncedAt: Date | null = null;
@@ -65,7 +105,7 @@ class SupabaseSyncService {
         if (error.code === '42P01') {
           return {
             success: false,
-            message: 'Connected to Supabase! However, the database tables need to be created using the SQL schema in Settings.',
+            message: 'Connected to Supabase! However, the database tables need to be created using schema.sql.',
           };
         }
         return { success: false, message: `Supabase (${error.code}): ${error.message}` };
@@ -118,7 +158,7 @@ class SupabaseSyncService {
   }
 
   /**
-   * Push local data to Supabase
+   * Push local data to Supabase in chunked batches
    */
   public async pushLocalToCloud(): Promise<void> {
     if (!isSupabaseConfigured()) return;
@@ -142,7 +182,9 @@ class SupabaseSyncService {
           created_at: r.createdAt,
           updated_at: r.updatedAt,
         }));
-        await supabase.from('raffles').upsert(payload, { onConflict: 'id' });
+        for (let i = 0; i < payload.length; i += 500) {
+          await supabase.from('raffles').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+        }
       }
 
       // 2. Ticket Designs
@@ -161,7 +203,9 @@ class SupabaseSyncService {
           created_at: d.createdAt,
           updated_at: d.updatedAt,
         }));
-        await supabase.from('ticket_designs').upsert(payload, { onConflict: 'id' });
+        for (let i = 0; i < payload.length; i += 500) {
+          await supabase.from('ticket_designs').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+        }
       }
 
       // 3. Print Layouts
@@ -186,7 +230,9 @@ class SupabaseSyncService {
           show_print_guides: l.showPrintGuides ?? true,
           calibration: l.calibration,
         }));
-        await supabase.from('print_layouts').upsert(payload, { onConflict: 'id' });
+        for (let i = 0; i < payload.length; i += 500) {
+          await supabase.from('print_layouts').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+        }
       }
 
       // 4. Print Sets
@@ -208,14 +254,16 @@ class SupabaseSyncService {
           status: s.status,
           created_at: s.createdAt,
         }));
-        await supabase.from('print_sets').upsert(payload, { onConflict: 'id' });
+        for (let i = 0; i < payload.length; i += 500) {
+          await supabase.from('print_sets').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+        }
       }
 
       // 5. Booklets
       const localBooklets = storageAdapter.get<Booklet[]>(STORAGE_KEYS.BOOKLETS, []);
       if (localBooklets.length > 0) {
-        for (let i = 0; i < localBooklets.length; i += 200) {
-          const chunk = localBooklets.slice(i, i + 200).map((b) => ({
+        for (let i = 0; i < localBooklets.length; i += 500) {
+          const chunk = localBooklets.slice(i, i + 500).map((b) => ({
             id: b.id,
             print_set_id: b.printSetId,
             raffle_id: b.raffleId,
@@ -234,11 +282,11 @@ class SupabaseSyncService {
         }
       }
 
-      // 6. Tickets
+      // 6. Tickets (Chunked in batches of 500 to support 10,000+ tickets smoothly)
       const localTickets = storageAdapter.get<Ticket[]>(STORAGE_KEYS.TICKETS, []);
       if (localTickets.length > 0) {
-        for (let i = 0; i < localTickets.length; i += 300) {
-          const chunk = localTickets.slice(i, i + 300).map((t) => ({
+        for (let i = 0; i < localTickets.length; i += 500) {
+          const chunk = localTickets.slice(i, i + 500).map((t) => ({
             id: t.id,
             print_set_id: t.printSetId,
             booklet_id: t.bookletId,
@@ -275,7 +323,9 @@ class SupabaseSyncService {
           created_at: e.createdAt,
           updated_at: e.updatedAt,
         }));
-        await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
+        for (let i = 0; i < payload.length; i += 500) {
+          await supabase.from('expenses').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+        }
       }
     } catch (err) {
       console.error('Error pushing data to Supabase:', err);
@@ -284,15 +334,15 @@ class SupabaseSyncService {
   }
 
   /**
-   * Pull all cloud tables and update local storage
+   * Pull all cloud tables without any 1000-row limit using paginated range fetching
    */
   public async pullFromCloud(): Promise<void> {
     if (!isSupabaseConfigured()) return;
 
     try {
-      // 1. Raffles
-      const { data: raffles } = await supabase.from('raffles').select('*');
-      if (raffles && raffles.length > 0) {
+      // 1. Raffles (unlimited)
+      const raffles = await fetchAllRows<any>('raffles');
+      if (raffles.length > 0) {
         const mapped: Raffle[] = raffles.map((r) => ({
           id: r.id,
           eventName: r.event_name,
@@ -311,9 +361,9 @@ class SupabaseSyncService {
         storageAdapter.set(STORAGE_KEYS.RAFFLES, mapped);
       }
 
-      // 2. Ticket Designs
-      const { data: designs } = await supabase.from('ticket_designs').select('*');
-      if (designs && designs.length > 0) {
+      // 2. Ticket Designs (unlimited)
+      const designs = await fetchAllRows<any>('ticket_designs');
+      if (designs.length > 0) {
         const mapped: TicketDesign[] = designs.map((d) => ({
           id: d.id,
           raffleId: d.raffle_id,
@@ -330,9 +380,9 @@ class SupabaseSyncService {
         storageAdapter.set(STORAGE_KEYS.DESIGNS, mapped);
       }
 
-      // 3. Print Layouts
-      const { data: layouts } = await supabase.from('print_layouts').select('*');
-      if (layouts && layouts.length > 0) {
+      // 3. Print Layouts (unlimited)
+      const layouts = await fetchAllRows<any>('print_layouts');
+      if (layouts.length > 0) {
         const mapped: PrintLayout[] = layouts.map((l) => ({
           id: l.id,
           raffleId: l.raffle_id,
@@ -355,9 +405,9 @@ class SupabaseSyncService {
         storageAdapter.set(STORAGE_KEYS.PRINT_LAYOUTS, mapped);
       }
 
-      // 4. Print Sets
-      const { data: sets } = await supabase.from('print_sets').select('*');
-      if (sets && sets.length > 0) {
+      // 4. Print Sets (unlimited)
+      const sets = await fetchAllRows<any>('print_sets');
+      if (sets.length > 0) {
         const mapped: PrintSet[] = sets.map((s) => ({
           id: s.id,
           raffleId: s.raffle_id,
@@ -377,9 +427,9 @@ class SupabaseSyncService {
         storageAdapter.set(STORAGE_KEYS.PRINT_SETS, mapped);
       }
 
-      // 5. Booklets
-      const { data: booklets } = await supabase.from('booklets').select('*');
-      if (booklets && booklets.length > 0) {
+      // 5. Booklets (unlimited - bypasses 1000 limit)
+      const booklets = await fetchAllRows<any>('booklets');
+      if (booklets.length > 0) {
         const mapped: Booklet[] = booklets.map((b) => ({
           id: b.id,
           printSetId: b.print_set_id,
@@ -398,9 +448,9 @@ class SupabaseSyncService {
         storageAdapter.set(STORAGE_KEYS.BOOKLETS, mapped);
       }
 
-      // 6. Tickets
-      const { data: tickets } = await supabase.from('tickets').select('*');
-      if (tickets && tickets.length > 0) {
+      // 6. Tickets (unlimited - bypasses 1000 limit)
+      const tickets = await fetchAllRows<any>('tickets');
+      if (tickets.length > 0) {
         const mapped: Ticket[] = tickets.map((t) => ({
           id: t.id,
           printSetId: t.print_set_id,
@@ -421,9 +471,9 @@ class SupabaseSyncService {
         storageAdapter.set(STORAGE_KEYS.TICKETS, mapped);
       }
 
-      // 7. Expenses
-      const { data: expenses } = await supabase.from('expenses').select('*');
-      if (expenses && expenses.length > 0) {
+      // 7. Expenses (unlimited)
+      const expenses = await fetchAllRows<any>('expenses');
+      if (expenses.length > 0) {
         const mapped: Expense[] = expenses.map((e) => ({
           id: e.id,
           raffleId: e.raffle_id,
