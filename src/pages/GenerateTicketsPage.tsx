@@ -365,22 +365,16 @@ export const GenerateTicketsPage: React.FC = () => {
   const totalPages = T;
   const endSeq = startSeq + totalTickets - 1;
 
-  // Auto-fit ticket dimensions based on paper size, Number of Booklets (B = rows per paper), and ticket spacing
+  // Ticket and paper printable dimensions
   const totalSpacingMm = (B - 1) * spacingMm;
   const printableWidth = Math.max(50, paperDims.width - marginMm * 2);
   const printableHeight = Math.max(25, paperDims.height - marginMm * 2 - totalSpacingMm);
-  const autoTicketWidth = Math.round(printableWidth * 10) / 10;
-  const autoTicketHeight = Math.round((printableHeight / B) * 10) / 10;
 
-  // Real-time design synchronized with auto-fitted dimensions
+  // Preserve exact design dimensions and fixed element coordinates without auto-adjusting
   const liveDesign = useMemo<TicketDesign | null>(() => {
     if (!design) return null;
-    return {
-      ...design,
-      widthMm: autoTicketWidth,
-      heightMm: autoTicketHeight,
-    };
-  }, [design, autoTicketWidth, autoTicketHeight]);
+    return design;
+  }, [design]);
 
   // Collision Check
   const collisionCheck =
@@ -413,19 +407,16 @@ export const GenerateTicketsPage: React.FC = () => {
     setIsGenerating(true);
     setGenerationProgress(25);
 
-    // Save auto-fitted design and print layout
-    if (liveDesign) {
-      designRepository.save(liveDesign);
-    }
+    // Save print layout parameters with preserved ticket design dimensions
     const layout = printLayoutRepository.getByRaffleId(raffle.id);
-    if (layout) {
+    if (layout && liveDesign) {
       printLayoutRepository.save({
         ...layout,
         paperSize,
         orientation,
         margins: { top: marginMm, bottom: marginMm, left: marginMm, right: marginMm },
-        ticketWidthMm: autoTicketWidth,
-        ticketHeightMm: autoTicketHeight,
+        ticketWidthMm: liveDesign.widthMm,
+        ticketHeightMm: liveDesign.heightMm,
         ticketsPerRow: 1,
         rowsPerPage: B,
         verticalGapMm: spacingMm,
@@ -489,11 +480,11 @@ export const GenerateTicketsPage: React.FC = () => {
             <h1 className="text-xl sm:text-2xl font-black text-[#111111] tracking-tight flex items-center gap-2">
               Generate Ticket Print Sets
               <span className="text-xs font-bold px-2 py-0.5 bg-orange-100 text-[#ea580c] rounded-full">
-                Auto-Fitted Layout
+                Custom Layout
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-[#6B7280]">
-              Ticket sizes automatically adapt to fit {B} rows on {paperSize} paper with zero overflow.
+              Prints {B} rows on {paperSize} paper preserving your exact ticket design and element positions.
             </p>
           </div>
 
@@ -523,7 +514,7 @@ export const GenerateTicketsPage: React.FC = () => {
                 <Badge status="active">Locked Format</Badge>
               </div>
               <p className="text-xs text-neutral-500 mt-1">
-                Subsequent sets automatically inherit the format and auto-fitted ticket sizing from Set #1. Click below to generate Set #{nextSetNum}.
+                Subsequent sets automatically inherit the format and exact ticket dimensions from Set #1. Click below to generate Set #{nextSetNum}.
               </p>
             </div>
 
@@ -566,7 +557,7 @@ export const GenerateTicketsPage: React.FC = () => {
             <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100">
               <span className="text-[10px] uppercase font-bold text-neutral-400 block mb-0.5">Ticket Size</span>
               <span className="font-bold text-neutral-800 font-mono">
-                {autoTicketWidth} × {autoTicketHeight} mm
+                {liveDesign.widthMm} × {liveDesign.heightMm} mm
               </span>
             </div>
             <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100">
@@ -733,9 +724,9 @@ export const GenerateTicketsPage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
                       <div className="p-2 bg-white rounded-lg border border-neutral-200">
-                        <span className="text-neutral-400 block text-[10px]">Autofitted Ticket Size:</span>
+                        <span className="text-neutral-400 block text-[10px]">Ticket Size:</span>
                         <strong className="text-neutral-900 font-mono text-xs">
-                          {autoTicketWidth} × {autoTicketHeight} mm
+                          {liveDesign.widthMm} × {liveDesign.heightMm} mm
                         </strong>
                       </div>
                       <div className="p-2 bg-white rounded-lg border border-neutral-200">
@@ -818,7 +809,7 @@ export const GenerateTicketsPage: React.FC = () => {
                   <div>
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Eye className="w-4 h-4 text-[#F97316]" />
-                      <span>Live Paper Print Preview (Autofitted on {paperSize})</span>
+                      <span>Live Paper Print Preview ({paperSize} Paper)</span>
                     </CardTitle>
                     <p className="text-[11px] text-neutral-400 mt-0.5">
                       Showing physical Sheet {previewPageIdx + 1} of {T} ({B} rows stacked vertically)
@@ -894,12 +885,12 @@ export const GenerateTicketsPage: React.FC = () => {
                         return (
                           <div
                             key={b}
-                            className={`relative border-dashed border-neutral-300 group ${
-                              spacingMm > 0 ? 'border' : 'border-b last:border-b-0'
+                            className={`relative group ${
+                              spacingMm > 0 ? 'border border-dashed border-neutral-300' : 'border-b border-dashed border-neutral-300 last:border-b-0'
                             }`}
                             style={{
-                              width: `${autoTicketWidth * previewZoom}mm`,
-                              height: `${autoTicketHeight * previewZoom}mm`,
+                              width: `${liveDesign.widthMm * previewZoom}mm`,
+                              height: `${liveDesign.heightMm * previewZoom}mm`,
                             }}
                           >
                             {/* Scissor Cut Line when spacing gap is 1mm and above */}
