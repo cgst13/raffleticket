@@ -39,7 +39,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please enter a valid email address.' };
     }
 
-    const stored = authRepository.getUserByEmail(trimmedEmail);
+    // Check Supabase first, fallback to memory
+    const stored = await authRepository.fetchUserByEmailFromSupabase(trimmedEmail);
     if (!stored) {
       return { success: false, error: 'Invalid email address or password.' };
     }
@@ -53,7 +54,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fullName: stored.fullName,
       email: stored.email,
       username: stored.username || stored.email,
-      role: 'admin',
+      role: stored.role || 'admin',
+      raffleId: stored.raffleId,
       createdAt: stored.createdAt,
     };
 
@@ -126,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Password must be at least 6 characters long.' };
     }
 
-    const existing = authRepository.getUserByEmail(trimmedEmail);
+    const existing = await authRepository.fetchUserByEmailFromSupabase(trimmedEmail);
     if (existing) {
       return { success: false, error: 'An account with this email address already exists. Please sign in.' };
     }

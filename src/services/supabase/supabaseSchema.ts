@@ -166,6 +166,19 @@ CREATE TABLE IF NOT EXISTS public.names_history (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 11. USERS TABLE (Accounts & Authentication)
+CREATE TABLE IF NOT EXISTS public.users (
+    id TEXT PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    username TEXT,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'admin',
+    raffle_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ════════════════════════════════════════════════════════════════
 -- INDEXES FOR HIGH PERFORMANCE QUERYING
 -- ════════════════════════════════════════════════════════════════
@@ -180,6 +193,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_sequence ON public.tickets(raffle_id, tic
 CREATE INDEX IF NOT EXISTS idx_tickets_number ON public.tickets(raffle_id, ticket_number);
 CREATE INDEX IF NOT EXISTS idx_expenses_raffle ON public.expenses(raffle_id);
 CREATE INDEX IF NOT EXISTS idx_managers_raffle ON public.managers(raffle_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 
 -- ════════════════════════════════════════════════════════════════
 -- ENABLE ROW LEVEL SECURITY & OPEN POLICIES (ANON ACCESS)
@@ -194,6 +208,7 @@ ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.managers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.names_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -226,6 +241,9 @@ BEGIN
 
     DROP POLICY IF EXISTS "Public Full Access on names_history" ON public.names_history;
     CREATE POLICY "Public Full Access on names_history" ON public.names_history FOR ALL USING (true) WITH CHECK (true);
+
+    DROP POLICY IF EXISTS "Public Full Access on users" ON public.users;
+    CREATE POLICY "Public Full Access on users" ON public.users FOR ALL USING (true) WITH CHECK (true);
 END $$;
 
 -- ════════════════════════════════════════════════════════════════
@@ -237,4 +255,5 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.tickets;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.expenses;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.print_sets;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.managers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 `;
