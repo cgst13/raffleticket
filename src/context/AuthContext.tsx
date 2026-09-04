@@ -37,26 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const stored = authRepository.getUserByUsername(trimmedUser);
     if (!stored) {
-      // For fast prototype demo convenience: if no user exists at all, auto-create admin account
-      const all = authRepository.getAllUsers();
-      if (all.length === 0) {
-        const newUser: User = {
-          id: uuidv4(),
-          fullName: 'Administrator',
-          username: trimmedUser,
-          role: 'admin',
-          createdAt: new Date().toISOString(),
-        };
-        authRepository.createUser(newUser, password);
-        const session: AuthSession = {
-          user: newUser,
-          token: uuidv4(),
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        };
-        authRepository.saveSession(session);
-        setUser(newUser);
-        return { success: true };
-      }
       return { success: false, error: 'Invalid username or password.' };
     }
 

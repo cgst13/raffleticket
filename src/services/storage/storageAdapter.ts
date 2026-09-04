@@ -1,28 +1,24 @@
 /**
- * Safe local storage utility with memory fallback for tests and SSR
+ * In-Memory storage adapter (No local storage persistence)
+ * Ensures all sessions and states remain strictly in memory with zero localStorage retention.
  */
 const memoryStore = new Map<string, string>();
 
-function isLocalStorageAvailable(): boolean {
+// Clean up any legacy localStorage residue on initialize
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
   try {
-    return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+    localStorage.clear();
   } catch {
-    return false;
+    // Ignore sandbox or security errors
   }
 }
 
 export const storageAdapter = {
   get<T>(key: string, defaultValue: T): T {
     try {
-      if (isLocalStorageAvailable()) {
-        const item = localStorage.getItem(key);
-        if (item === null) return defaultValue;
-        return JSON.parse(item) as T;
-      } else {
-        const item = memoryStore.get(key);
-        if (!item) return defaultValue;
-        return JSON.parse(item) as T;
-      }
+      const item = memoryStore.get(key);
+      if (!item) return defaultValue;
+      return JSON.parse(item) as T;
     } catch (e) {
       console.error(`Error reading key "${key}":`, e);
       return defaultValue;
@@ -32,11 +28,7 @@ export const storageAdapter = {
   set<T>(key: string, value: T): boolean {
     try {
       const json = JSON.stringify(value);
-      if (isLocalStorageAvailable()) {
-        localStorage.setItem(key, json);
-      } else {
-        memoryStore.set(key, json);
-      }
+      memoryStore.set(key, json);
       return true;
     } catch (e) {
       console.error(`Error saving key "${key}":`, e);
@@ -46,11 +38,7 @@ export const storageAdapter = {
 
   remove(key: string): void {
     try {
-      if (isLocalStorageAvailable()) {
-        localStorage.removeItem(key);
-      } else {
-        memoryStore.delete(key);
-      }
+      memoryStore.delete(key);
     } catch (e) {
       console.error(`Error removing key "${key}":`, e);
     }
@@ -58,9 +46,6 @@ export const storageAdapter = {
 
   clear(): void {
     try {
-      if (isLocalStorageAvailable()) {
-        localStorage.clear();
-      }
       memoryStore.clear();
     } catch (e) {
       console.error('Error clearing storage:', e);

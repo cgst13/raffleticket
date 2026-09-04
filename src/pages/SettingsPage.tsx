@@ -48,9 +48,6 @@ export const SettingsPage: React.FC = () => {
   // Supabase Cloud State
   const [isTestingCloud, setIsTestingCloud] = useState(false);
   const [cloudStatusMsg, setCloudStatusMsg] = useState<{ success: boolean; message: string } | null>(null);
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const [isPushingCloud, setIsPushingCloud] = useState(false);
-  const [isPullingCloud, setIsPullingCloud] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
 
@@ -64,7 +61,6 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     loadRaffles();
-    // Auto-test connection on load
     handleTestCloudConnection();
   }, []);
 
@@ -73,45 +69,6 @@ export const SettingsPage: React.FC = () => {
     const result = await supabaseSyncService.testConnection();
     setCloudStatusMsg(result);
     setIsTestingCloud(false);
-  };
-
-  const handleSyncCloudAll = async () => {
-    setIsSyncingAll(true);
-    try {
-      await supabaseSyncService.syncAll();
-      loadRaffles();
-      toast.success('Successfully synchronized with Supabase Cloud Database!');
-      handleTestCloudConnection();
-    } catch (err: any) {
-      toast.error(err?.message || 'Sync failed.');
-    } finally {
-      setIsSyncingAll(false);
-    }
-  };
-
-  const handlePushCloud = async () => {
-    setIsPushingCloud(true);
-    try {
-      await supabaseSyncService.pushLocalToCloud();
-      toast.success('Uploaded all local data to Supabase Cloud Database!');
-    } catch (err: any) {
-      toast.error(err?.message || 'Upload to Supabase failed.');
-    } finally {
-      setIsPushingCloud(false);
-    }
-  };
-
-  const handlePullCloud = async () => {
-    setIsPullingCloud(true);
-    try {
-      await supabaseSyncService.pullFromCloud();
-      loadRaffles();
-      toast.success('Downloaded latest data from Supabase Cloud Database!');
-    } catch (err: any) {
-      toast.error(err?.message || 'Download from Supabase failed.');
-    } finally {
-      setIsPullingCloud(false);
-    }
   };
 
   const handleCopySqlSchema = () => {
@@ -497,66 +454,6 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* Cloud Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between space-y-2">
-                <div>
-                  <h4 className="text-xs font-bold text-neutral-900">Bidirectional Sync</h4>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Push local updates and pull latest cloud records simultaneously.
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleSyncCloudAll}
-                  isLoading={isSyncingAll}
-                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                  className="w-full text-xs"
-                >
-                  Sync Now
-                </Button>
-              </div>
-
-              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between space-y-2">
-                <div>
-                  <h4 className="text-xs font-bold text-neutral-900">Upload to Supabase</h4>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Push all local events, tickets, booklets, and expenses to cloud.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePushCloud}
-                  isLoading={isPushingCloud}
-                  leftIcon={<Upload className="w-3.5 h-3.5 text-[#F97316]" />}
-                  className="w-full text-xs"
-                >
-                  Upload to Cloud
-                </Button>
-              </div>
-
-              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between space-y-2">
-                <div>
-                  <h4 className="text-xs font-bold text-neutral-900">Download from Supabase</h4>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Pull cloud database records to this browser's local cache.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePullCloud}
-                  isLoading={isPullingCloud}
-                  leftIcon={<Download className="w-3.5 h-3.5 text-[#F97316]" />}
-                  className="w-full text-xs"
-                >
-                  Download from Cloud
-                </Button>
-              </div>
-            </div>
 
             {/* SQL Schema helper button */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-orange-100/40 border border-orange-200 rounded-xl gap-2 mt-2">
