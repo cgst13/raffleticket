@@ -4,79 +4,76 @@ import { STORAGE_KEYS } from './storageKeys';
 import { storageAdapter } from './storageAdapter';
 import { supabase, isSupabaseConfigured } from '../supabase/supabaseClient';
 
+const AUTH_SESSION_KEY = 'rafflepro_auth_session';
+
 export interface StoredUser extends User {
   passwordHash: string;
 }
 
 export class LocalStorageAuthRepository implements IAuthRepository {
   getCurrentSession(): AuthSession | null {
-    let sessionJson: string | null = null;
+    let session: AuthSession | null = null;
 
-    // 1. Check active tab session (sessionStorage)
+    // 1. Check temporary session storage first
     if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
       try {
-        sessionJson = sessionStorage.getItem(STORAGE_KEYS.SESSION);
-      } catch (e) {
-        // Ignore access restrictions
+        const item = sessionStorage.getItem(AUTH_SESSION_KEY);
+        if (item) {
+          session = JSON.parse(item) as AuthSession;
+        }
+      } catch (err) {
+        console.warn('Error reading sessionStorage auth:', err);
       }
     }
 
-    // 2. Check persistent "Keep me logged in" session (localStorage)
-    if (!sessionJson && typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    // 2. Fallback to persistent local storage (if "Keep me logged in" was checked)
+    if (!session && typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       try {
-        sessionJson = localStorage.getItem(STORAGE_KEYS.SESSION);
-      } catch (e) {
-        // Ignore access restrictions
+        const item = localStorage.getItem(AUTH_SESSION_KEY);
+        if (item) {
+          session = JSON.parse(item) as AuthSession;
+        }
+      } catch (err) {
+        console.warn('Error reading localStorage auth:', err);
       }
     }
 
-    // 3. Check memory store fallback
-    if (!sessionJson) {
-      const memorySession = storageAdapter.get<AuthSession | null>(STORAGE_KEYS.SESSION, null);
-      if (memorySession) return memorySession;
-      return null;
+    // 3. Fallback to memory store if neither has it
+    if (!session) {
+      session = storageAdapter.get<AuthSession | null>(STORAGE_KEYS.SESSION, null);
     }
 
-    try {
-      const session = JSON.parse(sessionJson) as AuthSession;
-      if (!session || !session.expiresAt) return null;
+    if (!session) return null;
 
-      // Check expiry
-      if (new Date(session.expiresAt) < new Date()) {
-        this.clearSession();
-        return null;
-      }
-      return session;
-    } catch {
+    // Check expiry
+    if (new Date(session.expiresAt) < new Date()) {
+      this.clearSession();
       return null;
     }
+    return session;
   }
 
   saveSession(session: AuthSession, keepLoggedIn: boolean = true): void {
-    const json = JSON.stringify(session);
+    // Keep in active memory store
     storageAdapter.set(STORAGE_KEYS.SESSION, session);
 
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+
+    if (keepLoggedIn) {
+      // Persist in localStorage for permanent login across restarts
       try {
-        if (keepLoggedIn) {
-          // Persist to localStorage for enduring logins across restarts
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(STORAGE_KEYS.SESSION, json);
-          }
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.removeItem(STORAGE_KEYS.SESSION);
-          }
-        } else {
-          // Store only in sessionStorage so closing the tab/window ends the session
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(STORAGE_KEYS.SESSION, json);
-          }
-          if (typeof localStorage !== 'undefined') {
-            localStorage.removeItem(STORAGE_KEYS.SESSION);
-          }
-        }
-      } catch (e) {
-        console.warn('Unable to persist session storage:', e);
+        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+        sessionStorage.removeItem(AUTH_SESSION_KEY);
+      } catch (err) {
+        console.warn('Error saving persistent session:', err);
+      }
+    } else {
+      // Save strictly in sessionStorage (cleared when browser/tab closes)
+      try {
+        sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+        localStorage.removeItem(AUTH_SESSION_KEY);
+      } catch (err) {
+        console.warn('Error saving temporary session:', err);
       }
     }
   }
@@ -85,14 +82,10 @@ export class LocalStorageAuthRepository implements IAuthRepository {
     storageAdapter.remove(STORAGE_KEYS.SESSION);
     if (typeof window !== 'undefined') {
       try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem(STORAGE_KEYS.SESSION);
-        }
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.removeItem(STORAGE_KEYS.SESSION);
-        }
-      } catch (e) {
-        // Ignore sandbox or security errors
+        localStorage.removeItem(AUTH_SESSION_KEY);
+        sessionStorage.removeItem(AUTH_SESSION_KEY);
+      } catch {
+        /* ignore */
       }
     }
   }
@@ -124,7 +117,7 @@ export class LocalStorageAuthRepository implements IAuthRepository {
             raffleId: data.raffle_id || undefined,
             createdAt: data.created_at,
           };
-          // Cache in memory store
+          // Cache in active memory store
           const users = storageAdapter.get<StoredUser[]>(STORAGE_KEYS.USERS, []);
           const existingIdx = users.findIndex((u) => u.id === user.id);
           if (existingIdx >= 0) {

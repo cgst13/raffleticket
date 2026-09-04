@@ -20,6 +20,7 @@ import { TicketDetailModal } from '../components/tickets/TicketDetailModal';
 import { TicketMarkSoldModal } from '../components/tickets/TicketMarkSoldModal';
 import { ExpenseModal } from '../components/expenses/ExpenseModal';
 import { useToast } from '../context/ToastContext';
+import { storageAdapter } from '../services/storage/storageAdapter';
 import {
   TrendingUp,
   DollarSign,
@@ -66,9 +67,15 @@ export const SalesPage: React.FC = () => {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
-
   const [refreshKey, setRefreshKey] = useState(0);
   const loadData = () => setRefreshKey((k) => k + 1);
+
+  React.useEffect(() => {
+    const unsubscribe = storageAdapter.subscribe(() => {
+      loadData();
+    });
+    return unsubscribe;
+  }, []);
 
   const raffles = useMemo(() => rafflesRepository.getAll(), [refreshKey]);
   const tickets = useMemo(() => ticketsRepository.getAll(), [selectedTicket, soldTicketIds, refreshKey]);

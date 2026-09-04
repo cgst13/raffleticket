@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { AppLayout } from './components/layout/AppLayout';
 
+import { supabaseSyncService } from './services/supabase/supabaseSyncService';
+
 // Pages
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -78,6 +80,12 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    supabaseSyncService.initialize().catch((err) => {
+      console.warn('Initial Supabase sync error:', err);
+    });
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

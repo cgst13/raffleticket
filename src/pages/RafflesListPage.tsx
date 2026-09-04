@@ -22,6 +22,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { storageAdapter } from '../services/storage/storageAdapter';
+
 export const RafflesListPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -31,6 +33,14 @@ export const RafflesListPage: React.FC = () => {
   const refreshRaffles = () => {
     setRaffles(rafflesRepository.getAll());
   };
+
+  React.useEffect(() => {
+    refreshRaffles();
+    const unsubscribe = storageAdapter.subscribe(() => {
+      refreshRaffles();
+    });
+    return unsubscribe;
+  }, []);
 
   const handleConfirmDelete = () => {
     if (!deleteTargetId) return;

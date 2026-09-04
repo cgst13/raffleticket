@@ -2,6 +2,7 @@ import { IDesignRepository } from './interfaces';
 import { TicketDesign } from '../../types/designer';
 import { STORAGE_KEYS } from './storageKeys';
 import { storageAdapter } from './storageAdapter';
+import { supabase, isSupabaseConfigured } from '../supabase/supabaseClient';
 
 export class LocalStorageDesignRepository implements IDesignRepository {
   getByRaffleId(raffleId: string): TicketDesign | null {
@@ -28,6 +29,32 @@ export class LocalStorageDesignRepository implements IDesignRepository {
     }
 
     storageAdapter.set(STORAGE_KEYS.DESIGNS, designs);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(
+        supabase.from('ticket_designs').upsert(
+          {
+            id: updatedDesign.id,
+            raffle_id: updatedDesign.raffleId,
+            name: updatedDesign.name,
+            width_mm: updatedDesign.widthMm,
+            height_mm: updatedDesign.heightMm,
+            background_image_url: updatedDesign.backgroundImageUrl || '',
+            background_color: updatedDesign.backgroundColor || '#FFFFFF',
+            elements: updatedDesign.elements || [],
+            version: updatedDesign.version,
+            created_at: updatedDesign.createdAt || now,
+            updated_at: now,
+          },
+          { onConflict: 'id' }
+        )
+      )
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase design save error:', res.error);
+        })
+        .catch((err) => console.error('Supabase design save error:', err));
+    }
+
     return updatedDesign;
   }
 
@@ -36,8 +63,18 @@ export class LocalStorageDesignRepository implements IDesignRepository {
     const filtered = designs.filter((d) => d.raffleId !== raffleId);
     if (filtered.length === designs.length) return false;
     storageAdapter.set(STORAGE_KEYS.DESIGNS, filtered);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(supabase.from('ticket_designs').delete().eq('raffle_id', raffleId))
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase design delete error:', res.error);
+        })
+        .catch((err) => console.error('Supabase design delete error:', err));
+    }
+
     return true;
   }
 }
 
 export const designRepository = new LocalStorageDesignRepository();
+

@@ -32,6 +32,8 @@ import {
   Layers,
 } from 'lucide-react';
 
+import { storageAdapter } from '../services/storage/storageAdapter';
+
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -57,6 +59,10 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     refreshData();
+    const unsubscribe = storageAdapter.subscribe(() => {
+      refreshData();
+    });
+    return unsubscribe;
   }, []);
 
   const handleConfirmDelete = () => {

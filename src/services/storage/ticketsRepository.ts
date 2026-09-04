@@ -2,6 +2,7 @@ import { ITicketRepository } from './interfaces';
 import { Ticket, TicketStatus } from '../../types/ticket';
 import { STORAGE_KEYS } from './storageKeys';
 import { storageAdapter } from './storageAdapter';
+import { supabase, isSupabaseConfigured } from '../supabase/supabaseClient';
 
 export class LocalStorageTicketRepository implements ITicketRepository {
   getAll(filter?: { raffleId?: string; printSetId?: string; bookletId?: string; status?: TicketStatus }): Ticket[] {
@@ -49,6 +50,36 @@ export class LocalStorageTicketRepository implements ITicketRepository {
     const tickets = this.getAll();
     tickets.push(ticket);
     storageAdapter.set(STORAGE_KEYS.TICKETS, tickets);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(
+        supabase.from('tickets').upsert(
+          {
+            id: ticket.id,
+            print_set_id: ticket.printSetId,
+            booklet_id: ticket.bookletId,
+            raffle_id: ticket.raffleId,
+            ticket_number: ticket.ticketNumber,
+            ticket_sequence: ticket.ticketSequence,
+            qr_value: ticket.qrValue,
+            amount: ticket.amount,
+            status: ticket.status,
+            buyer_name: ticket.buyerName || null,
+            solicitor_name: ticket.solicitorName || null,
+            created_at: ticket.createdAt,
+            assigned_at: ticket.assignedAt || null,
+            sold_at: ticket.soldAt || null,
+            used_at: ticket.usedAt || null,
+          },
+          { onConflict: 'id' }
+        )
+      )
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase ticket create error:', res.error);
+        })
+        .catch((err) => console.error('Supabase ticket create error:', err));
+    }
+
     return ticket;
   }
 
@@ -56,6 +87,36 @@ export class LocalStorageTicketRepository implements ITicketRepository {
     const tickets = this.getAll();
     tickets.push(...newTickets);
     storageAdapter.set(STORAGE_KEYS.TICKETS, tickets);
+
+    if (isSupabaseConfigured() && newTickets.length > 0) {
+      const payload = newTickets.map((t) => ({
+        id: t.id,
+        print_set_id: t.printSetId,
+        booklet_id: t.bookletId,
+        raffle_id: t.raffleId,
+        ticket_number: t.ticketNumber,
+        ticket_sequence: t.ticketSequence,
+        qr_value: t.qrValue,
+        amount: t.amount,
+        status: t.status,
+        buyer_name: t.buyerName || null,
+        solicitor_name: t.solicitorName || null,
+        created_at: t.createdAt,
+        assigned_at: t.assignedAt || null,
+        sold_at: t.soldAt || null,
+        used_at: t.usedAt || null,
+      }));
+
+      for (let i = 0; i < payload.length; i += 500) {
+        const chunk = payload.slice(i, i + 500);
+        Promise.resolve(supabase.from('tickets').upsert(chunk, { onConflict: 'id' }))
+          .then((res: any) => {
+            if (res?.error) console.error('Supabase tickets chunk error:', res.error);
+          })
+          .catch((err) => console.error('Supabase tickets chunk error:', err));
+      }
+    }
+
     return newTickets;
   }
 
@@ -66,6 +127,23 @@ export class LocalStorageTicketRepository implements ITicketRepository {
 
     tickets[index] = { ...tickets[index], ...updates };
     storageAdapter.set(STORAGE_KEYS.TICKETS, tickets);
+
+    if (isSupabaseConfigured()) {
+      const payload: any = {};
+      if (updates.status !== undefined) payload.status = updates.status;
+      if (updates.buyerName !== undefined) payload.buyer_name = updates.buyerName || null;
+      if (updates.solicitorName !== undefined) payload.solicitor_name = updates.solicitorName || null;
+      if (updates.assignedAt !== undefined) payload.assigned_at = updates.assignedAt || null;
+      if (updates.soldAt !== undefined) payload.sold_at = updates.soldAt || null;
+      if (updates.usedAt !== undefined) payload.used_at = updates.usedAt || null;
+
+      Promise.resolve(supabase.from('tickets').update(payload).eq('id', id))
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase ticket update error:', res.error);
+        })
+        .catch((err) => console.error('Supabase ticket update error:', err));
+    }
+
     return tickets[index];
   }
 
@@ -83,6 +161,25 @@ export class LocalStorageTicketRepository implements ITicketRepository {
 
     if (count > 0) {
       storageAdapter.set(STORAGE_KEYS.TICKETS, tickets);
+
+      if (isSupabaseConfigured()) {
+        const payload: any = {};
+        if (updates.status !== undefined) payload.status = updates.status;
+        if (updates.buyerName !== undefined) payload.buyer_name = updates.buyerName || null;
+        if (updates.solicitorName !== undefined) payload.solicitor_name = updates.solicitorName || null;
+        if (updates.assignedAt !== undefined) payload.assigned_at = updates.assignedAt || null;
+        if (updates.soldAt !== undefined) payload.sold_at = updates.soldAt || null;
+        if (updates.usedAt !== undefined) payload.used_at = updates.usedAt || null;
+
+        for (let i = 0; i < ids.length; i += 200) {
+          const chunkIds = ids.slice(i, i + 200);
+          Promise.resolve(supabase.from('tickets').update(payload).in('id', chunkIds))
+            .then((res: any) => {
+              if (res?.error) console.error('Supabase updateMany tickets error:', res.error);
+            })
+            .catch((err) => console.error('Supabase updateMany tickets error:', err));
+        }
+      }
     }
     return count;
   }
@@ -92,6 +189,15 @@ export class LocalStorageTicketRepository implements ITicketRepository {
     const filtered = tickets.filter((t) => t.id !== id);
     if (filtered.length === tickets.length) return false;
     storageAdapter.set(STORAGE_KEYS.TICKETS, filtered);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(supabase.from('tickets').delete().eq('id', id))
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase ticket delete error:', res.error);
+        })
+        .catch((err) => console.error('Supabase ticket delete error:', err));
+    }
+
     return true;
   }
 
@@ -100,6 +206,15 @@ export class LocalStorageTicketRepository implements ITicketRepository {
     const filtered = tickets.filter((t) => t.raffleId !== raffleId);
     const deletedCount = tickets.length - filtered.length;
     storageAdapter.set(STORAGE_KEYS.TICKETS, filtered);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(supabase.from('tickets').delete().eq('raffle_id', raffleId))
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase tickets deleteByRaffle error:', res.error);
+        })
+        .catch((err) => console.error('Supabase tickets deleteByRaffle error:', err));
+    }
+
     return deletedCount;
   }
 
@@ -108,6 +223,15 @@ export class LocalStorageTicketRepository implements ITicketRepository {
     const filtered = tickets.filter((t) => t.printSetId !== printSetId);
     const deletedCount = tickets.length - filtered.length;
     storageAdapter.set(STORAGE_KEYS.TICKETS, filtered);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(supabase.from('tickets').delete().eq('print_set_id', printSetId))
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase tickets deleteByPrintSet error:', res.error);
+        })
+        .catch((err) => console.error('Supabase tickets deleteByPrintSet error:', err));
+    }
+
     return deletedCount;
   }
 
@@ -138,3 +262,4 @@ export class LocalStorageTicketRepository implements ITicketRepository {
 }
 
 export const ticketsRepository = new LocalStorageTicketRepository();
+

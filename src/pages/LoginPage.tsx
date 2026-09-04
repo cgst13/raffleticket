@@ -66,14 +66,14 @@ export const LoginPage: React.FC = () => {
             />
 
             <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-neutral-700 hover:text-neutral-900">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={keepLoggedIn}
                   onChange={(e) => setKeepLoggedIn(e.target.checked)}
-                  className="w-4 h-4 rounded border-neutral-300 text-[#F97316] focus:ring-[#F97316] cursor-pointer accent-[#F97316]"
+                  className="w-4 h-4 rounded border-gray-300 text-[#F97316] focus:ring-[#F97316] accent-[#F97316] cursor-pointer"
                 />
-                <span>Keep me logged in</span>
+                <span className="text-xs font-semibold text-neutral-700">Keep me logged in</span>
               </label>
             </div>
 
@@ -82,7 +82,7 @@ export const LoginPage: React.FC = () => {
                 type="submit"
                 variant="primary"
                 size="md"
-                className="w-full font-bold shadow-md shadow-orange-100"
+                className="w-full"
                 isLoading={isLoading}
               >
                 Sign In

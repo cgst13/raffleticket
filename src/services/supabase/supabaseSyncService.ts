@@ -573,6 +573,15 @@ class SupabaseSyncService {
   /**
    * Setup Supabase Realtime subscriptions
    */
+  private debounceTimer: any = null;
+
+  private schedulePullFromCloud() {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => {
+      this.pullFromCloud().catch(console.error);
+    }, 300);
+  }
+
   private setupRealtime() {
     if (this.realtimeChannel) {
       this.realtimeChannel.unsubscribe();
@@ -584,27 +593,42 @@ class SupabaseSyncService {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'raffles' },
-          () => this.pullFromCloud().catch(console.error)
+          () => this.schedulePullFromCloud()
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'booklets' },
-          () => this.pullFromCloud().catch(console.error)
+          { event: '*', schema: 'public', table: 'ticket_designs' },
+          () => this.schedulePullFromCloud()
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'tickets' },
-          () => this.pullFromCloud().catch(console.error)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'expenses' },
-          () => this.pullFromCloud().catch(console.error)
+          { event: '*', schema: 'public', table: 'print_layouts' },
+          () => this.schedulePullFromCloud()
         )
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'print_sets' },
-          () => this.pullFromCloud().catch(console.error)
+          () => this.schedulePullFromCloud()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'booklets' },
+          () => this.schedulePullFromCloud()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'tickets' },
+          () => this.schedulePullFromCloud()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'expenses' },
+          () => this.schedulePullFromCloud()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users' },
+          () => this.schedulePullFromCloud()
         )
         .subscribe();
     } catch (err) {
@@ -614,3 +638,4 @@ class SupabaseSyncService {
 }
 
 export const supabaseSyncService = new SupabaseSyncService();
+

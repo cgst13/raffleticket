@@ -3,6 +3,7 @@ import { AppSettings, ActivityItem, BackupData } from '../../types/settings';
 import { STORAGE_KEYS } from './storageKeys';
 import { storageAdapter } from './storageAdapter';
 import { appConfig } from '../../config/appConfig';
+import { supabase, isSupabaseConfigured } from '../supabase/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 
 const defaultSettings: AppSettings = {
@@ -24,6 +25,26 @@ export class LocalStorageSettingsRepository implements ISettingsRepository {
     const current = this.getSettings();
     const updated = { ...current, ...settings };
     storageAdapter.set(STORAGE_KEYS.SETTINGS, updated);
+
+    if (isSupabaseConfigured()) {
+      Promise.resolve(
+        supabase.from('app_settings').upsert(
+          {
+            id: 'global_settings',
+            organization_name: updated.appName || appConfig.name,
+            theme_mode: updated.theme || 'light',
+            default_paper_size: updated.defaultPaperSize || 'Folio',
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        )
+      )
+        .then((res: any) => {
+          if (res?.error) console.error('Supabase settings save error:', res.error);
+        })
+        .catch((err) => console.error('Supabase settings save error:', err));
+    }
+
     return updated;
   }
 
@@ -87,3 +108,4 @@ export class LocalStorageSettingsRepository implements ISettingsRepository {
 }
 
 export const settingsRepository = new LocalStorageSettingsRepository();
+

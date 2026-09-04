@@ -21,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check existing session
+    // Check existing session (from sessionStorage, localStorage, or memory)
     const session = authRepository.getCurrentSession();
     if (session) {
       setUser(session.user);
@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please enter a valid email address.' };
     }
 
-    // Check Supabase first, fallback to memory
+    // Authenticate directly from Supabase users table
     const stored = await authRepository.fetchUserByEmailFromSupabase(trimmedEmail);
     if (!stored) {
       return { success: false, error: 'Invalid email address or password.' };
@@ -66,9 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session: AuthSession = {
       user: sessionUser,
       token: uuidv4(),
-      expiresAt: keepLoggedIn
-        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + (keepLoggedIn ? 30 : 1) * 24 * 60 * 60 * 1000).toISOString(),
     };
     authRepository.saveSession(session, keepLoggedIn);
     setUser(session.user);
@@ -114,9 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session: AuthSession = {
       user: managerUser,
       token: uuidv4(),
-      expiresAt: keepLoggedIn
-        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + (keepLoggedIn ? 30 : 1) * 24 * 60 * 60 * 1000).toISOString(),
     };
 
     authRepository.saveSession(session, keepLoggedIn);
@@ -163,9 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const session: AuthSession = {
       user: newUser,
       token: uuidv4(),
-      expiresAt: keepLoggedIn
-        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + (keepLoggedIn ? 30 : 1) * 24 * 60 * 60 * 1000).toISOString(),
     };
     authRepository.saveSession(session, keepLoggedIn);
     setUser(newUser);
@@ -189,3 +183,4 @@ export const useAuth = () => {
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
+

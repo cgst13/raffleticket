@@ -5,6 +5,7 @@ import { ticketsRepository } from '../services/storage/ticketsRepository';
 import { bookletsRepository } from '../services/storage/bookletsRepository';
 import { printSetsRepository } from '../services/storage/printSetsRepository';
 import { designRepository } from '../services/storage/designRepository';
+import { storageAdapter } from '../services/storage/storageAdapter';
 import { ticketFormatter } from '../services/tickets/ticketFormatter';
 import { Raffle } from '../types/raffle';
 import { Ticket, TicketStatus } from '../types/ticket';
@@ -99,6 +100,10 @@ export const RaffleDetailPage: React.FC = () => {
 
   useEffect(() => {
     loadRaffleData();
+    const unsubscribe = storageAdapter.subscribe(() => {
+      loadRaffleData();
+    });
+    return unsubscribe;
   }, [raffleId]);
 
   if (!raffle) return null;
