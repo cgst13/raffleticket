@@ -242,12 +242,34 @@ BEGIN
 END $$;
 
 -- ════════════════════════════════════════════════════════════════
--- ENABLE REALTIME REPLICATION FOR LIVE SYNC
+-- ENABLE REALTIME REPLICATION FOR LIVE SYNC (IDEMPOTENT)
 -- ════════════════════════════════════════════════════════════════
-ALTER PUBLICATION supabase_realtime ADD TABLE public.raffles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.booklets;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tickets;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.expenses;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.print_sets;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.managers;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'raffles') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.raffles;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'booklets') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.booklets;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'tickets') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.tickets;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'expenses') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.expenses;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'print_sets') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.print_sets;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'managers') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.managers;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'users') THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
+        END IF;
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        NULL;
+END $$;
