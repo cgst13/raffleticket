@@ -11,6 +11,9 @@ import {
   Palette,
   Sparkles,
   Trophy,
+  Cloud,
+  CloudOff,
+  RefreshCw,
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../ui/Button';
@@ -18,6 +21,8 @@ import { Raffle } from '../../types/raffle';
 import { appConfig } from '../../config/appConfig';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
+import { supabaseSyncService, SyncStatus } from '../../services/supabase/supabaseSyncService';
+import { useToast } from '../../context/ToastContext';
 
 interface TopHeaderProps {
   onToggleSidebar: () => void;
@@ -49,9 +54,31 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const { user } = useAuth();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [canInstall, setCanInstall] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = supabaseSyncService.subscribe((status) => {
+      setSyncStatus(status);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleManualSync = async () => {
+    setIsManualSyncing(true);
+    try {
+      await supabaseSyncService.syncAll();
+      toast.success('Successfully synchronized with Supabase Cloud Database!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Sync failed. Please check network connection.');
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -164,6 +191,35 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* ── RIGHT SECTION: ACTIONS ─────────────────── */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Supabase Cloud Sync Status Pill */}
+        <button
+          onClick={handleManualSync}
+          disabled={isManualSyncing}
+          title="Click to manually sync with Supabase Cloud Database"
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all border ${
+            syncStatus === 'synced'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+              : syncStatus === 'syncing' || isManualSyncing
+              ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
+              : 'bg-neutral-100 text-neutral-600 border-neutral-200 hover:bg-neutral-200'
+          }`}
+        >
+          {isManualSyncing || syncStatus === 'syncing' ? (
+            <RefreshCw className="w-3 h-3 text-amber-600 animate-spin shrink-0" />
+          ) : syncStatus === 'synced' ? (
+            <Cloud className="w-3 h-3 text-emerald-600 shrink-0" />
+          ) : (
+            <CloudOff className="w-3 h-3 text-neutral-500 shrink-0" />
+          )}
+          <span className="hidden sm:inline">
+            {isManualSyncing || syncStatus === 'syncing'
+              ? 'Syncing Cloud...'
+              : syncStatus === 'synced'
+              ? 'Cloud Synced'
+              : 'Offline / Local'}
+          </span>
+        </button>
+
         {canInstall && (
           <Button
             variant="outline"

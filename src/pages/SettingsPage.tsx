@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Modal } from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
 import {
   Settings,
@@ -25,7 +26,15 @@ import {
   Check,
   ExternalLink,
   CheckCircle2,
+  Cloud,
+  RefreshCw,
+  Code2,
+  Server,
+  AlertCircle,
 } from 'lucide-react';
+import { supabaseSyncService } from '../services/supabase/supabaseSyncService';
+import { supabaseConfig, isSupabaseConfigured } from '../services/supabase/supabaseClient';
+import { SUPABASE_SQL_SCHEMA } from '../services/supabase/supabaseSchema';
 
 export const SettingsPage: React.FC = () => {
   const toast = useToast();
@@ -40,6 +49,15 @@ export const SettingsPage: React.FC = () => {
   const [newManagerEmail, setNewManagerEmail] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Supabase Cloud State
+  const [isTestingCloud, setIsTestingCloud] = useState(false);
+  const [cloudStatusMsg, setCloudStatusMsg] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isPushingCloud, setIsPushingCloud] = useState(false);
+  const [isPullingCloud, setIsPullingCloud] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
+
   const loadRaffles = () => {
     const list = rafflesRepository.getAll();
     setRaffles(list);
@@ -50,7 +68,62 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     loadRaffles();
+    // Auto-test connection on load
+    handleTestCloudConnection();
   }, []);
+
+  const handleTestCloudConnection = async () => {
+    setIsTestingCloud(true);
+    const result = await supabaseSyncService.testConnection();
+    setCloudStatusMsg(result);
+    setIsTestingCloud(false);
+  };
+
+  const handleSyncCloudAll = async () => {
+    setIsSyncingAll(true);
+    try {
+      await supabaseSyncService.syncAll();
+      loadRaffles();
+      toast.success('Successfully synchronized with Supabase Cloud Database!');
+      handleTestCloudConnection();
+    } catch (err: any) {
+      toast.error(err?.message || 'Sync failed.');
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
+  const handlePushCloud = async () => {
+    setIsPushingCloud(true);
+    try {
+      await supabaseSyncService.pushLocalToCloud();
+      toast.success('Uploaded all local data to Supabase Cloud Database!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Upload to Supabase failed.');
+    } finally {
+      setIsPushingCloud(false);
+    }
+  };
+
+  const handlePullCloud = async () => {
+    setIsPullingCloud(true);
+    try {
+      await supabaseSyncService.pullFromCloud();
+      loadRaffles();
+      toast.success('Downloaded latest data from Supabase Cloud Database!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Download from Supabase failed.');
+    } finally {
+      setIsPullingCloud(false);
+    }
+  };
+
+  const handleCopySqlSchema = () => {
+    navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
+    setCopiedSql(true);
+    toast.success('Supabase SQL Schema copied to clipboard! Paste and run in Supabase SQL Editor.');
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
 
   const currentSelectedRaffle = raffles.find((r) => r.id === selectedRaffleId) || raffles[0] || null;
 
@@ -383,6 +456,173 @@ export const SettingsPage: React.FC = () => {
           ) : null}
         </Card>
 
+        {/* Supabase Cloud Database & Live Sync */}
+        <Card className="p-5 md:col-span-2 border-orange-200/90 bg-gradient-to-br from-white via-orange-50/20 to-white shadow-sm">
+          <CardHeader className="pb-3 mb-3 border-b border-[#E5E5E5] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Cloud className="w-4 h-4 text-[#F97316]" />
+              <span>Supabase Cloud Database & Realtime Sync</span>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  cloudStatusMsg?.success
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    cloudStatusMsg?.success ? 'bg-emerald-500' : 'bg-amber-500'
+                  }`}
+                />
+                {cloudStatusMsg?.success ? 'Connected to Cloud' : 'Cloud Configured'}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestCloudConnection}
+                isLoading={isTestingCloud}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5 text-[#F97316]" />}
+                className="text-xs"
+              >
+                Test Connection
+              </Button>
+            </div>
+          </CardHeader>
+
+          <div className="space-y-4">
+            {/* Connection Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-white rounded-xl border border-neutral-200 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-neutral-400 block">
+                  Supabase Project URL
+                </span>
+                <span className="font-mono text-neutral-800 font-semibold text-xs break-all">
+                  {supabaseConfig.url}
+                </span>
+              </div>
+              <div className="p-3 bg-white rounded-xl border border-neutral-200 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-neutral-400 block">
+                  Authentication Role
+                </span>
+                <span className="font-mono text-neutral-800 font-semibold text-xs">
+                  Public Anon API Key (RLS Protected)
+                </span>
+              </div>
+            </div>
+
+            {/* Status Feedback Notice */}
+            {cloudStatusMsg && (
+              <div
+                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
+                  cloudStatusMsg.success
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50/80 border-amber-200 text-amber-800'
+                }`}
+              >
+                <Server className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <strong>{cloudStatusMsg.success ? 'Supabase Status:' : 'Notice:'}</strong>{' '}
+                  <span>{cloudStatusMsg.message}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Cloud Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between space-y-2">
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900">Bidirectional Sync</h4>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    Push local updates and pull latest cloud records simultaneously.
+                  </p>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSyncCloudAll}
+                  isLoading={isSyncingAll}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                  className="w-full text-xs"
+                >
+                  Sync Now
+                </Button>
+              </div>
+
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between space-y-2">
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900">Upload to Supabase</h4>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    Push all local events, tickets, booklets, and expenses to cloud.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePushCloud}
+                  isLoading={isPushingCloud}
+                  leftIcon={<Upload className="w-3.5 h-3.5 text-[#F97316]" />}
+                  className="w-full text-xs"
+                >
+                  Upload to Cloud
+                </Button>
+              </div>
+
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between space-y-2">
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900">Download from Supabase</h4>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    Pull cloud database records to this browser's local cache.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePullCloud}
+                  isLoading={isPullingCloud}
+                  leftIcon={<Download className="w-3.5 h-3.5 text-[#F97316]" />}
+                  className="w-full text-xs"
+                >
+                  Download from Cloud
+                </Button>
+              </div>
+            </div>
+
+            {/* SQL Schema helper button */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-orange-100/40 border border-orange-200 rounded-xl gap-2 mt-2">
+              <div>
+                <strong className="text-xs font-bold text-neutral-900 block">
+                  Supabase SQL Database Schema
+                </strong>
+                <span className="text-[11px] text-neutral-600">
+                  Execute the SQL DDL statements in your Supabase SQL Editor to initialize all tables and Realtime replication.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSqlModalOpen(true)}
+                  leftIcon={<Code2 className="w-3.5 h-3.5 text-[#F97316]" />}
+                  className="text-xs bg-white"
+                >
+                  View SQL
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleCopySqlSchema}
+                  leftIcon={copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  className="text-xs"
+                >
+                  {copiedSql ? 'Copied!' : 'Copy SQL Script'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* Backup & Restore */}
         <Card className="p-5 md:col-span-2">
           <CardHeader className="pb-3 mb-3 border-b border-[#E5E5E5]">
@@ -461,12 +701,43 @@ export const SettingsPage: React.FC = () => {
               </h4>
               <p className="text-xs text-neutral-400 leading-relaxed">
                 The storage system is decoupled via standard TypeScript interfaces (`ITicketRepository`, `IRaffleRepository`, etc.).
-                LocalStorage persistence operates completely offline as a Progressive Web App. The repository layer is architected to seamlessly plug into Supabase or PostgreSQL without modifying UI code.
+                LocalStorage persistence operates completely offline as a Progressive Web App with bidirectional background synchronization to Supabase Cloud Database.
               </p>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* SQL Schema Modal */}
+      <Modal
+        isOpen={isSqlModalOpen}
+        onClose={() => setIsSqlModalOpen(false)}
+        title="Supabase Database SQL DDL Schema"
+        description="Run this complete SQL script in your Supabase SQL Editor to initialize all tables, indexes, and Realtime replication."
+        maxWidth="2xl"
+      >
+        <div className="space-y-3 text-xs">
+          <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
+            <span className="text-neutral-500">PostgreSQL DDL for Supabase</span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleCopySqlSchema}
+              leftIcon={copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            >
+              {copiedSql ? 'Copied to Clipboard!' : 'Copy SQL Schema'}
+            </Button>
+          </div>
+          <pre className="p-3.5 bg-neutral-900 text-neutral-200 rounded-xl font-mono text-[11px] overflow-x-auto max-h-96 leading-relaxed select-all">
+            {SUPABASE_SQL_SCHEMA}
+          </pre>
+          <div className="flex justify-end pt-2 border-t border-neutral-100">
+            <Button variant="outline" size="sm" onClick={() => setIsSqlModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Clear Confirmation Modal */}
       <ConfirmDialog

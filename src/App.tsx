@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { supabaseSyncService } from './services/supabase/supabaseSyncService';
 
 // Pages
 import { LoginPage } from './pages/LoginPage';
@@ -78,6 +79,10 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    supabaseSyncService.initialize().catch(console.error);
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
