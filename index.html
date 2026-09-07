@@ -23,9 +23,16 @@
               l.pathname.slice(0, -1) + decoded + l.hash
           );
         }
-      }(window.location))
+      }(window.location));
+
+      // Suppress unhandled errors originating from browser extensions / injected VM scripts
+      window.addEventListener('error', function(event) {
+        if (event.filename && (event.filename.includes('chrome-extension://') || event.filename.includes('extension://') || event.filename.startsWith('VM'))) {
+          event.preventDefault();
+        }
+      });
     </script>
-    <script type="module" crossorigin src="/assets/index-CbAXLzCs.js"></script>
+    <script type="module" crossorigin src="/assets/index-DrcdRwiS.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-BtOD8RV_.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body class="bg-[#F8F8F7] text-[#111111] antialiased selection:bg-orange-100 selection:text-orange-900 min-h-screen">
